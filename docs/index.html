@@ -1311,7 +1311,7 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
       if(s===Math.floor(step)){el.classList.add('md-active');lastActive=el;}
       else el.classList.remove('md-active');
     });
-    if(lastActive) lastActive.scrollIntoView({behavior:'smooth',block:'nearest'});
+    if(lastActive) source.scrollTop=lastActive.offsetTop-source.offsetTop;
   }
 
   function addLine(html){
