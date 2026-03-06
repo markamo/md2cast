@@ -856,6 +856,152 @@ def cast_to_gif(cast_path):
         print("  Error: agg timed out", file=sys.stderr)
 
 
+def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None):
+    """Generate a new Markdown with GIF screencasts embedded above code blocks.
+
+    For each bash code block, generates a mini .cast → .gif showing the command
+    being typed. The original code block is preserved below for copy-paste.
+    Non-bash code blocks get syntax-highlighted GIFs too.
+
+    Returns the new Markdown text and the number of GIFs generated.
+    """
+    os.makedirs(assets_dir, exist_ok=True)
+    lines = md_text.split("\n")
+    output_lines = []
+    gif_count = 0
+    current_section = "intro"
+    pending_directives = {}
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Track current section for naming
+        heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if heading_match:
+            current_section = strip_md(heading_match.group(2))
+
+        # Collect directives (pass through to output AND use for generation)
+        pause_match = re.match(r'^\s*<!--\s*pause\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
+        skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
+        directive_match = re.match(
+            r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear)\s*-->\s*$', line)
+        td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
+        prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
+
+        if directive_match:
+            pending_directives[directive_match.group(1)] = True
+            output_lines.append(line)
+            i += 1
+            continue
+        if td_match:
+            pending_directives["type-delay"] = float(td_match.group(1))
+            output_lines.append(line)
+            i += 1
+            continue
+        if prompt_match:
+            pending_directives["prompt"] = prompt_match.group(1)
+            output_lines.append(line)
+            i += 1
+            continue
+
+        # Skip directive — pass through, skip the code block
+        if skip_match:
+            output_lines.append(line)
+            i += 1
+            if i < len(lines) and lines[i].startswith("```"):
+                output_lines.append(lines[i])
+                i += 1
+                while i < len(lines) and not lines[i].startswith("```"):
+                    output_lines.append(lines[i])
+                    i += 1
+                if i < len(lines):
+                    output_lines.append(lines[i])
+                    i += 1
+            continue
+
+        # Fenced code block — generate GIF
+        code_match = re.match(r'^```(\w*)\s*$', line)
+        if code_match:
+            lang = code_match.group(1).lower()
+            code_start = i
+            i += 1
+            code_lines = []
+            while i < len(lines) and not lines[i].startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # skip closing ```
+
+            code_content = "\n".join(code_lines)
+            dirs = pending_directives
+            pending_directives = {}
+
+            # Determine if this is a command block or output block
+            is_command = lang in ("bash", "sh", "shell", "console", "zsh")
+            force_output = dirs.get("output", False)
+            is_view_exec = dirs.get("view-exec", False)
+
+            # Generate a GIF for this block
+            gif_count += 1
+            slug = slugify(current_section)
+            cast_name = f"{gif_count:02d}-{slug}"
+            cast_path = os.path.join(assets_dir, f"{cast_name}.cast")
+            gif_path = os.path.join(assets_dir, f"{cast_name}.gif")
+
+            # Build a mini cast for just this block
+            cast = CastWriter(theme, title=strip_md(current_section))
+            renderer = Renderer(cast, theme, execute=execute, working_dir=working_dir)
+            cast.pause(0.3)
+
+            if is_view_exec and is_command:
+                block = Block("code", code_content, lang=lang, directives=dirs)
+                renderer.render_view_exec(code_content, directives=dirs)
+            elif is_command and not force_output:
+                renderer.render_command(code_content, directives=dirs)
+            else:
+                renderer.render_output(code_content, lang=lang)
+
+            cast.pause(theme.end_pause)
+            cast.save(cast_path)
+
+            # Convert to GIF
+            gif_ok = False
+            try:
+                result = subprocess.run(
+                    ["agg", cast_path, gif_path],
+                    capture_output=True, text=True, timeout=120
+                )
+                gif_ok = result.returncode == 0
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+
+            ok = "\033[0;32m[OK]\033[0m"
+            err = "\033[0;31m[ERR]\033[0m"
+            if gif_ok:
+                print(f"  {ok} {gif_path}")
+                # Insert GIF reference above the code block
+                # Use relative path from output markdown location
+                rel_gif = os.path.join(os.path.basename(assets_dir), f"{cast_name}.gif")
+                alt_text = strip_md(current_section)
+                output_lines.append(f"![{alt_text}]({rel_gif})")
+                output_lines.append("")
+            else:
+                print(f"  {err} Failed to generate {gif_path}", file=sys.stderr)
+
+            # Preserve the original code block for copy-paste
+            output_lines.append(f"```{code_match.group(1)}")
+            for cl in code_lines:
+                output_lines.append(cl)
+            output_lines.append("```")
+            continue
+
+        # Pass through all other lines unchanged
+        output_lines.append(line)
+        i += 1
+
+    return "\n".join(output_lines), gif_count
+
+
 def slugify(text):
     """Convert text to a filename-safe slug."""
     text = strip_md(text).lower()
@@ -893,6 +1039,8 @@ def main():
     parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
     parser.add_argument("--gif", action="store_true",
                         help="Also generate GIF via agg (requires agg installed)")
+    parser.add_argument("--render", action="store_true",
+                        help="Generate a new Markdown with embedded GIF screencasts for each code block")
     parser.add_argument("--init-theme", action="store_true",
                         help="Print default theme JSON and exit (redirect to a file to customize)")
     parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
@@ -942,6 +1090,29 @@ def main():
         sys.exit(1)
 
     blocks = parse_markdown(md_text)
+
+    # Render mode — generate new Markdown with embedded GIFs
+    if args.render:
+        base = os.path.splitext(args.input)[0]
+        out_md = args.output or f"{base}-rendered.md"
+        assets_dir = os.path.join(os.path.dirname(out_md) or ".", "assets")
+
+        print(f"\n  Rendering {args.input} → {out_md}\n")
+        rendered_md, gif_count = render_markdown(
+            md_text, theme,
+            assets_dir=assets_dir,
+            execute=args.execute,
+            working_dir=args.working_dir,
+        )
+
+        with open(out_md, "w") as f:
+            f.write(rendered_md)
+
+        ok = "\033[0;32m[OK]\033[0m"
+        print(f"\n  {ok} {out_md}  ({gif_count} GIFs)")
+        print(f"  Assets: {assets_dir}/")
+        print()
+        return
 
     # List mode
     if args.list:

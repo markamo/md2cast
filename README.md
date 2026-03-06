@@ -67,6 +67,9 @@ md2cast tutorial.md --gif
 # Split into sections and generate GIFs for each
 md2cast tutorial.md --split --gif
 
+# Render: generate new Markdown with GIFs embedded above code blocks
+md2cast tutorial.md --render
+
 # Use a custom theme
 md2cast tutorial.md --theme my-theme.json
 ```
@@ -247,6 +250,32 @@ agg output.cast output.gif
 
 # Upload to asciinema.org
 asciinema upload output.cast
+```
+
+## Render Mode
+
+Generate a new Markdown file with GIF screencasts embedded above each code block:
+
+```bash
+md2cast tutorial.md --render
+```
+
+This produces:
+- `tutorial-rendered.md` — new Markdown with `![](assets/01-name.gif)` above each code block
+- `assets/` — directory containing `.cast` and `.gif` files for each block
+
+The original code blocks are preserved below each GIF so readers can still copy-paste commands. Non-bash blocks (YAML, Python, JSON, etc.) get syntax-highlighted GIFs.
+
+Use with `--execute` to capture real command output in the GIFs:
+
+```bash
+md2cast tutorial.md --render --execute -C /path/to/project
+```
+
+Custom output path:
+
+```bash
+md2cast tutorial.md --render -o docs/VISUAL-GUIDE.md
 ```
 
 ## Execute Mode
