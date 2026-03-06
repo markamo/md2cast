@@ -12,6 +12,7 @@ Write your tutorial in Markdown, run `md2cast`, get a `.cast` file you can play,
 - **pygments** *(optional)* — for syntax highlighting in code blocks (`pip install pygments`)
 - **playwright** *(optional)* — for browser capture (`pip install playwright && playwright install chromium`)
 - **ffmpeg** *(optional)* — for converting browser video recordings to GIF
+- **xdotool** or **ydotool** *(optional)* — for GUI desktop capture (`apt install xdotool` or `apt install ydotool`)
 
 ```bash
 # Install asciinema
@@ -111,6 +112,7 @@ HTML comment directives give per-block control without breaking normal Markdown 
 | `<!-- clear -->` | Clear screen (alternative to `---`) |
 | `<!-- skip -->` | Skip the next block entirely |
 | `<!-- pause 3 -->` | Pause for N seconds |
+| `<!-- gui -->` | Next code block contains desktop GUI automation steps (requires xdotool/ydotool) |
 
 Directives apply to the next block only and can be stacked:
 
@@ -367,6 +369,78 @@ screenshot deployed
 
 ```bash
 tail -f /var/log/app.log
+```
+````
+
+## GUI Capture
+
+Capture desktop application interactions with screenshots. Requires `xdotool` (X11) or `ydotool` (Wayland), plus a screenshot tool (`grim`, `scrot`, or ImageMagick `import`).
+
+```bash
+# X11
+sudo apt install xdotool scrot
+
+# Wayland
+sudo apt install ydotool grim
+```
+
+Use the `<!-- gui -->` directive before a code block containing GUI steps:
+
+````markdown
+## Configure the Editor
+
+<!-- gui -->
+```steps
+launch code --new-window /tmp/demo
+sleep 2
+screenshot editor-opened
+type "Hello, world!"
+sleep 1
+screenshot editor-typed
+```
+````
+
+### GUI actions
+
+| Action | Example | Description |
+|--------|---------|-------------|
+| `launch <cmd>` | `launch code .` | Launch application (background) |
+| `focus <window>` | `focus "VS Code"` | Focus window by title |
+| `click <x> <y>` | `click 500 300` | Click at screen coordinates |
+| `type <text>` | `type "Hello"` | Type text via keyboard |
+| `key <combo>` | `key ctrl+s` | Press key combination |
+| `move <x> <y>` | `move 500 300` | Move mouse to coordinates |
+| `drag <x1> <y1> <x2> <y2>` | `drag 100 100 500 500` | Drag from one point to another |
+| `screenshot [name]` | `screenshot editor` | Capture full screen |
+| `window-screenshot [name]` | `window-screenshot editor` | Capture focused window only |
+| `sleep <seconds>` | `sleep 2` | Wait N seconds |
+
+Screenshots are embedded as images in `--render` output. Auto-detects X11 vs Wayland for the correct tooling.
+
+Mix all three block types freely — terminal, browser, and GUI — in one document:
+
+````markdown
+## Build the App
+
+```bash
+npm run build
+```
+
+## Check the Dashboard
+
+<!-- browser -->
+```steps
+open http://localhost:3000
+screenshot dashboard
+```
+
+## Configure in Desktop App
+
+<!-- gui -->
+```steps
+launch myapp
+sleep 2
+screenshot app-running
 ```
 ````
 

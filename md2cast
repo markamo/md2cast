@@ -43,7 +43,8 @@ Directives (HTML comments — invisible in rendered Markdown):
   <!-- prompt # -->       → change prompt character for the next block (e.g., root shell)
   <!-- output -->         → force next ```bash block to display as static output
   <!-- view-exec -->     → show commands as preview, then execute each with real output
-  <!-- browser -->       → next code block contains browser automation steps
+  <!-- browser -->       → next code block contains browser automation steps (playwright)
+  <!-- gui -->           → next code block contains GUI automation steps (xdotool/ydotool)
   <!-- clear -->          → clear screen (alternative to ---)
 """
 
@@ -406,6 +407,11 @@ def parse_markdown(text):
             i += 1
             continue
 
+        if re.match(r'^\s*<!--\s*gui\s*-->\s*$', line):
+            pending_directives["gui"] = True
+            i += 1
+            continue
+
         if re.match(r'^\s*<!--\s*exec\s*-->\s*$', line):
             pending_directives["exec"] = True
             i += 1
@@ -453,8 +459,10 @@ def parse_markdown(text):
             dirs = pending_directives
             pending_directives = {}
 
-            # <!-- browser --> makes the block a browser automation block
-            if dirs.get("browser"):
+            # <!-- gui --> and <!-- browser --> make special block types
+            if dirs.get("gui"):
+                blocks.append(Block("gui", content, lang=lang, directives=dirs))
+            elif dirs.get("browser"):
                 blocks.append(Block("browser", content, lang=lang, directives=dirs))
             # <!-- output --> forces bash blocks to be shown as static output
             elif dirs.get("output") and lang in ("bash", "sh", "shell", "console", "zsh"):
@@ -1088,6 +1096,317 @@ def video_to_gif(video_path, gif_path=None, fps=10, width=800):
     return None
 
 
+# ── GUI capture ────────────────────────────────────────────────────────────
+
+def _has_command(cmd):
+    """Check if a command is available on PATH."""
+    try:
+        subprocess.run(["which", cmd], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def _detect_display_server():
+    """Detect whether we're on X11 or Wayland."""
+    session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
+    if session_type == "wayland":
+        return "wayland"
+    if session_type == "x11" or os.environ.get("DISPLAY"):
+        return "x11"
+    return None
+
+
+def _gui_screenshot(output_path, region=None):
+    """Take a screenshot of the desktop or a region.
+
+    region: (x, y, width, height) or None for full screen.
+    """
+    display = _detect_display_server()
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+
+    if display == "wayland" and _has_command("grim"):
+        cmd = ["grim"]
+        if region:
+            x, y, w, h = region
+            cmd += ["-g", f"{x},{y} {w}x{h}"]
+        cmd.append(output_path)
+    elif _has_command("import"):
+        # ImageMagick import
+        cmd = ["import", "-window", "root"]
+        if region:
+            x, y, w, h = region
+            cmd += ["-crop", f"{w}x{h}+{x}+{y}"]
+        cmd.append(output_path)
+    elif _has_command("scrot"):
+        cmd = ["scrot", output_path]
+    elif _has_command("gnome-screenshot"):
+        cmd = ["gnome-screenshot", "-f", output_path]
+    else:
+        print(f"  {err} No screenshot tool found. Install: sudo apt install scrot (X11) or grim (Wayland)",
+              file=sys.stderr)
+        return False
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return True
+        else:
+            print(f"  {err} Screenshot failed: {result.stderr[:200]}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print(f"  {err} Screenshot timed out", file=sys.stderr)
+    return False
+
+
+def _gui_window_screenshot(window_title, output_path):
+    """Take a screenshot of a specific window by title."""
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+
+    if _has_command("xdotool") and _has_command("import"):
+        # Find window by title, then screenshot it
+        try:
+            result = subprocess.run(
+                ["xdotool", "search", "--name", window_title],
+                capture_output=True, text=True, timeout=5)
+            window_ids = result.stdout.strip().split("\n")
+            if window_ids and window_ids[0]:
+                wid = window_ids[0]
+                subprocess.run(["import", "-window", wid, output_path],
+                               capture_output=True, timeout=10)
+                return True
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            pass
+    # Fallback to full screen
+    return _gui_screenshot(output_path)
+
+
+def _gui_input(action, **kwargs):
+    """Send input events to the desktop.
+
+    Uses xdotool (X11) or ydotool (Wayland).
+    """
+    display = _detect_display_server()
+
+    if display == "wayland" and _has_command("ydotool"):
+        tool = "ydotool"
+    elif _has_command("xdotool"):
+        tool = "xdotool"
+    else:
+        print("  Error: No input tool found. Install: sudo apt install xdotool (X11) or ydotool (Wayland)",
+              file=sys.stderr)
+        return False
+
+    try:
+        if action == "click":
+            x, y = kwargs["x"], kwargs["y"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "mousemove", str(x), str(y), "click", "1"],
+                               capture_output=True, timeout=5)
+            else:
+                subprocess.run(["ydotool", "mousemove", "-a", str(x), str(y)],
+                               capture_output=True, timeout=5)
+                subprocess.run(["ydotool", "click", "1"], capture_output=True, timeout=5)
+
+        elif action == "type":
+            text = kwargs["text"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "type", "--delay", "50", text],
+                               capture_output=True, timeout=30)
+            else:
+                subprocess.run(["ydotool", "type", text],
+                               capture_output=True, timeout=30)
+
+        elif action == "key":
+            key = kwargs["key"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "key", key],
+                               capture_output=True, timeout=5)
+            else:
+                subprocess.run(["ydotool", "key", key],
+                               capture_output=True, timeout=5)
+
+        elif action == "move":
+            x, y = kwargs["x"], kwargs["y"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "mousemove", str(x), str(y)],
+                               capture_output=True, timeout=5)
+            else:
+                subprocess.run(["ydotool", "mousemove", "-a", str(x), str(y)],
+                               capture_output=True, timeout=5)
+
+        elif action == "drag":
+            x1, y1, x2, y2 = kwargs["x1"], kwargs["y1"], kwargs["x2"], kwargs["y2"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "mousemove", str(x1), str(y1),
+                                "mousedown", "1", "mousemove", str(x2), str(y2),
+                                "mouseup", "1"],
+                               capture_output=True, timeout=10)
+            else:
+                subprocess.run(["ydotool", "mousemove", "-a", str(x1), str(y1)],
+                               capture_output=True, timeout=5)
+                subprocess.run(["ydotool", "mousedown", "1"],
+                               capture_output=True, timeout=5)
+                subprocess.run(["ydotool", "mousemove", "-a", str(x2), str(y2)],
+                               capture_output=True, timeout=5)
+                subprocess.run(["ydotool", "mouseup", "1"],
+                               capture_output=True, timeout=5)
+
+        elif action == "focus":
+            title = kwargs["title"]
+            if tool == "xdotool":
+                subprocess.run(["xdotool", "search", "--name", title,
+                                "windowactivate", "--sync"],
+                               capture_output=True, timeout=10)
+
+        return True
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+        print(f"  Error: GUI input failed: {e}", file=sys.stderr)
+        return False
+
+
+def parse_gui_steps(text):
+    """Parse a GUI steps block into a list of action dicts.
+
+    Supported actions:
+      launch <command>              — launch an application
+      focus <window-title>          — focus a window by title
+      click <x> <y>                — click at screen coordinates
+      type <text>                   — type text via keyboard
+      key <combo>                   — press key combo (e.g., ctrl+s, alt+F4)
+      move <x> <y>                 — move mouse to coordinates
+      drag <x1> <y1> <x2> <y2>    — drag from one point to another
+      screenshot [name]             — capture full screen
+      window-screenshot <title> [name] — capture specific window
+      sleep <seconds>               — wait N seconds
+    """
+    steps = []
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        parts = line.split(None, 1)
+        action = parts[0].lower()
+        args = parts[1] if len(parts) > 1 else ""
+
+        if action == "launch":
+            steps.append({"action": "launch", "command": args.strip()})
+        elif action == "focus":
+            steps.append({"action": "focus", "title": args.strip()})
+        elif action == "click":
+            coords = args.split()
+            steps.append({"action": "click",
+                          "x": int(coords[0]), "y": int(coords[1])})
+        elif action == "type":
+            # Strip surrounding quotes if present
+            text_val = args.strip().strip('"').strip("'")
+            steps.append({"action": "type", "text": text_val})
+        elif action == "key":
+            steps.append({"action": "key", "key": args.strip()})
+        elif action == "move":
+            coords = args.split()
+            steps.append({"action": "move",
+                          "x": int(coords[0]), "y": int(coords[1])})
+        elif action == "drag":
+            coords = args.split()
+            steps.append({"action": "drag",
+                          "x1": int(coords[0]), "y1": int(coords[1]),
+                          "x2": int(coords[2]), "y2": int(coords[3])})
+        elif action == "screenshot":
+            steps.append({"action": "screenshot", "name": args.strip() or None})
+        elif action == "window-screenshot":
+            ws_parts = args.split(None, 1)
+            title = ws_parts[0] if ws_parts else ""
+            name = ws_parts[1] if len(ws_parts) > 1 else None
+            steps.append({"action": "window-screenshot", "title": title, "name": name})
+        elif action == "sleep":
+            steps.append({"action": "sleep", "seconds": float(args)})
+        else:
+            steps.append({"action": "unknown", "raw": line})
+
+    return steps
+
+
+def run_gui_steps(steps, assets_dir, name_prefix="gui"):
+    """Execute GUI automation steps. Returns list of generated asset paths."""
+    display = _detect_display_server()
+    if not display:
+        print("  Error: No display server detected (X11 or Wayland required for GUI capture)",
+              file=sys.stderr)
+        return []
+
+    assets = []
+    screenshot_count = 0
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+
+    for step in steps:
+        action = step["action"]
+
+        if action == "launch":
+            try:
+                subprocess.Popen(step["command"], shell=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                import time as _time
+                _time.sleep(2)  # wait for app to start
+            except Exception as e:
+                print(f"  {err} Launch failed: {e}", file=sys.stderr)
+
+        elif action == "focus":
+            _gui_input("focus", title=step["title"])
+            import time as _time
+            _time.sleep(0.5)
+
+        elif action == "click":
+            _gui_input("click", x=step["x"], y=step["y"])
+            import time as _time
+            _time.sleep(0.3)
+
+        elif action == "type":
+            _gui_input("type", text=step["text"])
+
+        elif action == "key":
+            _gui_input("key", key=step["key"])
+
+        elif action == "move":
+            _gui_input("move", x=step["x"], y=step["y"])
+
+        elif action == "drag":
+            _gui_input("drag", x1=step["x1"], y1=step["y1"],
+                       x2=step["x2"], y2=step["y2"])
+
+        elif action == "screenshot":
+            screenshot_count += 1
+            shot_name = step.get("name") or f"{screenshot_count:02d}"
+            shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
+            if _gui_screenshot(shot_path):
+                assets.append({"type": "screenshot", "path": shot_path})
+                print(f"  {ok} {shot_path}")
+            else:
+                print(f"  {err} Failed: {shot_path}", file=sys.stderr)
+
+        elif action == "window-screenshot":
+            screenshot_count += 1
+            shot_name = step.get("name") or f"{screenshot_count:02d}"
+            shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
+            if _gui_window_screenshot(step["title"], shot_path):
+                assets.append({"type": "screenshot", "path": shot_path})
+                print(f"  {ok} {shot_path}")
+            else:
+                print(f"  {err} Failed: {shot_path}", file=sys.stderr)
+
+        elif action == "sleep":
+            import time as _time
+            _time.sleep(step["seconds"])
+
+        elif action == "unknown":
+            print(f"  {err} Unknown GUI action: {step['raw']}", file=sys.stderr)
+
+    return assets
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 def cast_to_gif(cast_path):
@@ -1156,7 +1475,7 @@ def _walk_markdown_blocks(md_text):
 
         # Directives
         directive_match = re.match(
-            r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear|browser)\s*-->\s*$', line)
+            r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear|browser|gui)\s*-->\s*$', line)
         td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
         prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
         skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
@@ -1210,7 +1529,9 @@ def _walk_markdown_blocks(md_text):
 
             dirs = pending_directives
             pending_directives = {}
-            if dirs.get("browser"):
+            if dirs.get("gui"):
+                yield ("gui", lang, code_lines, original_lines, dirs)
+            elif dirs.get("browser"):
                 yield ("browser", lang, code_lines, original_lines, dirs)
             else:
                 yield ("code", lang, code_lines, original_lines, dirs)
@@ -1302,6 +1623,24 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
                                                os.path.basename(gif_path))
                         output_lines.append(f"![{alt_text}]({rel_gif})")
                         output_lines.append("")
+
+        elif event[0] == "gui":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+            slug = slugify(current_section)
+            name_prefix = f"{block_count:02d}-{slug}"
+
+            steps = parse_gui_steps(code_content)
+            gui_assets = run_gui_steps(steps, assets_dir, name_prefix=name_prefix)
+
+            alt_text = strip_md(current_section)
+            for asset in gui_assets:
+                rel_path = os.path.join(os.path.basename(assets_dir),
+                                        os.path.basename(asset["path"]))
+                if asset["type"] == "screenshot":
+                    output_lines.append(f"![{alt_text}]({rel_path})")
+                    output_lines.append("")
 
     return "\n".join(output_lines), block_count
 
@@ -1407,6 +1746,27 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
                         f'<video controls style="max-width:100%;border-radius:8px;">'
                         f'<source src="{rel_path}" type="video/webm">'
                         f'</video></div>')
+
+        elif event[0] == "gui":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+            slug = slugify(current_section)
+            name_prefix = f"{block_count:02d}-{slug}"
+
+            steps = parse_gui_steps(code_content)
+            gui_assets = run_gui_steps(steps, assets_dir, name_prefix=name_prefix)
+
+            alt_text = _html_escape(strip_md(current_section))
+            for asset in gui_assets:
+                rel_path = os.path.join(os.path.basename(assets_dir),
+                                        os.path.basename(asset["path"]))
+                if asset["type"] == "screenshot":
+                    sections_html.append(
+                        f'<div class="gui-capture">'
+                        f'<img src="{rel_path}" alt="{alt_text}" '
+                        f'style="max-width:100%;border-radius:8px;border:1px solid var(--border);">'
+                        f'</div>')
 
     body = "\n".join(sections_html)
     html = _html_template(page_title or "Documentation", body, theme)
