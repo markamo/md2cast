@@ -1492,28 +1492,14 @@ def parse_gui_steps(text):
 
 
 def _find_screen_recorder():
-    """Find an available screen recorder for the current display server."""
-    display = _detect_display_server()
-    if display == "wayland":
-        if _has_command("wf-recorder"):
-            # Check if wlr-screencopy is supported (test with dry run)
-            test = subprocess.run(["wf-recorder", "-f", "/dev/null"],
-                                  capture_output=True, text=True, timeout=2)
-            if test.returncode == 0 or b"wlr-screencopy" not in (test.stderr or "").encode():
-                return "wf-recorder"
-        # GNOME Shell screencast via D-Bus (works on GNOME Wayland)
-        if _has_command("gdbus"):
-            test = subprocess.run([
-                "gdbus", "introspect", "--session",
-                "--dest", "org.gnome.Shell.Screencast",
-                "--object-path", "/org/gnome/Shell/Screencast"
-            ], capture_output=True, text=True, timeout=3)
-            if test.returncode == 0 and "Screencast" in test.stdout:
-                return "gnome-screencast"
-    if _has_command("ffmpeg"):
-        if display == "x11":
-            return "ffmpeg"
-    return None
+    """Find an available screen recorder for the current display server.
+
+    Prefers screenshot-loop method (works everywhere screenshots work)
+    over screencast APIs which have compositor-specific issues.
+    """
+    # Screenshot-loop works on any display server where screenshots work
+    # This is the most reliable method
+    return "screenshot-loop"
 
 
 def run_gui_steps(steps, assets_dir, name_prefix="gui"):
@@ -1586,95 +1572,62 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
 
         elif action == "record_start":
             rec_name = step.get("name") or "recording"
-            recorder = _find_screen_recorder()
+            recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.gif")
+            # Use screenshot-loop: capture frames as fast as possible
+            # Store frame paths in recording_proc as a list
+            import threading
+            recording_frames = []
+            recording_stop = threading.Event()
+            frames_dir = os.path.join(assets_dir, f".frames-{rec_name}")
+            os.makedirs(frames_dir, exist_ok=True)
 
-            if recorder == "gnome-screencast":
-                recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.webm")
-                result = subprocess.run([
-                    "gdbus", "call", "--session",
-                    "--dest", "org.gnome.Shell.Screencast",
-                    "--object-path", "/org/gnome/Shell/Screencast",
-                    "--method", "org.gnome.Shell.Screencast.Screencast",
-                    recording_path, "{}"
-                ], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0 and "true" in result.stdout:
-                    recording_proc = "gnome-screencast"  # sentinel value
-                    print(f"  Recording started → {recording_path}")
-                else:
-                    print(f"  {err} GNOME screencast failed: {result.stderr[:200]}",
-                          file=sys.stderr)
-                    recording_proc = None
-            elif recorder == "wf-recorder":
-                recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.mp4")
-                recording_proc = subprocess.Popen(
-                    ["wf-recorder", "-f", recording_path],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                print(f"  Recording started → {recording_path}")
-                time.sleep(0.5)
-            elif recorder == "ffmpeg":
-                recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.mp4")
-                disp = os.environ.get("DISPLAY", ":0")
-                recording_proc = subprocess.Popen(
-                    ["ffmpeg", "-y", "-f", "x11grab", "-framerate", "15",
-                     "-i", disp, "-c:v", "libx264", "-preset", "ultrafast",
-                     recording_path],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                print(f"  Recording started → {recording_path}")
-                time.sleep(0.5)
-            else:
-                print(f"  {err} No screen recorder found. Install: sudo apt install wf-recorder (Wayland) "
-                      f"or use ffmpeg (X11)", file=sys.stderr)
-                recording_proc = None
+            def _capture_loop():
+                frame_num = 0
+                silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
+                while not recording_stop.is_set():
+                    frame_path = os.path.join(frames_dir, f"frame-{frame_num:04d}.png")
+                    if _gui_screenshot(frame_path):
+                        recording_frames.append(frame_path)
+                    frame_num += 1
+                    # ~5 fps capture rate
+                    recording_stop.wait(0.2)
+
+            recording_thread = threading.Thread(target=_capture_loop, daemon=True)
+            recording_thread.start()
+            recording_proc = (recording_thread, recording_stop, recording_frames,
+                              frames_dir, recording_path)
+            print(f"  Recording started (screenshot capture) → {recording_path}")
 
         elif action == "record_stop":
-            if recording_proc:
-                stderr_out = ""
-                if recording_proc == "gnome-screencast":
-                    # Stop GNOME screencast via D-Bus
-                    subprocess.run([
-                        "gdbus", "call", "--session",
-                        "--dest", "org.gnome.Shell.Screencast",
-                        "--object-path", "/org/gnome/Shell/Screencast",
-                        "--method", "org.gnome.Shell.Screencast.StopScreencast"
-                    ], capture_output=True, text=True, timeout=5)
-                    time.sleep(1)  # let GNOME finalize the file
-                else:
-                    # Send SIGINT for clean stop (wf-recorder, ffmpeg)
-                    import signal
-                    recording_proc.send_signal(signal.SIGINT)
+            if recording_proc and isinstance(recording_proc, tuple):
+                rec_thread, rec_stop, rec_frames, frames_dir, gif_out = recording_proc
+                rec_stop.set()
+                rec_thread.join(timeout=5)
+
+                if rec_frames:
+                    print(f"  Captured {len(rec_frames)} frames")
+                    # Compile frames to GIF using ffmpeg
                     try:
-                        _, stderr_bytes = recording_proc.communicate(timeout=10)
-                        stderr_out = stderr_bytes.decode(errors="replace") if stderr_bytes else ""
-                    except subprocess.TimeoutExpired:
-                        recording_proc.kill()
-                        recording_proc.communicate()
-
-                # Give filesystem a moment to flush
-                time.sleep(0.5)
-
-                if recording_path and os.path.exists(recording_path):
-                    fsize = os.path.getsize(recording_path)
-                    if fsize > 0:
-                        print(f"  Recording saved: {recording_path} ({fsize} bytes)")
-                        # Convert to GIF
-                        gif_path = video_to_gif(recording_path)
-                        if gif_path:
-                            assets.append({"type": "video", "path": gif_path})
-                            print(f"  {ok} {gif_path}")
+                        result = subprocess.run([
+                            "ffmpeg", "-y", "-framerate", "5",
+                            "-i", os.path.join(frames_dir, "frame-%04d.png"),
+                            "-vf", "scale=800:-1:flags=lanczos",
+                            "-loop", "0", gif_out
+                        ], capture_output=True, text=True, timeout=120)
+                        if result.returncode == 0 and os.path.exists(gif_out):
+                            assets.append({"type": "video", "path": gif_out})
+                            print(f"  {ok} {gif_out}")
                         else:
-                            assets.append({"type": "video", "path": recording_path})
-                            print(f"  {ok} {recording_path} (no GIF conversion)")
-                    else:
-                        print(f"  {err} Recording file is empty: {recording_path}",
-                              file=sys.stderr)
-                        if stderr_out:
-                            print(f"  Recorder: {stderr_out.strip()[:300]}", file=sys.stderr)
+                            print(f"  {err} GIF compilation failed: {result.stderr[:200]}",
+                                  file=sys.stderr)
+                    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                        print(f"  {err} ffmpeg error: {e}", file=sys.stderr)
+
+                    # Clean up frames
+                    import shutil
+                    shutil.rmtree(frames_dir, ignore_errors=True)
                 else:
-                    print(f"  {err} Recording file not found: {recording_path}",
-                          file=sys.stderr)
-                    if stderr_out:
-                        print(f"  Recorder: {stderr_out.strip()[:300]}", file=sys.stderr)
+                    print(f"  {err} No frames captured", file=sys.stderr)
 
                 recording_proc = None
                 recording_path = None
@@ -1688,21 +1641,12 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
             print(f"  {err} Unknown GUI action: {step['raw']}", file=sys.stderr)
 
     # Clean up recording if still running
-    if recording_proc:
-        if recording_proc == "gnome-screencast":
-            subprocess.run([
-                "gdbus", "call", "--session",
-                "--dest", "org.gnome.Shell.Screencast",
-                "--object-path", "/org/gnome/Shell/Screencast",
-                "--method", "org.gnome.Shell.Screencast.StopScreencast"
-            ], capture_output=True, timeout=5)
-        else:
-            import signal
-            recording_proc.send_signal(signal.SIGINT)
-            try:
-                recording_proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                recording_proc.kill()
+    if recording_proc and isinstance(recording_proc, tuple):
+        rec_thread, rec_stop, rec_frames, frames_dir, gif_out = recording_proc
+        rec_stop.set()
+        rec_thread.join(timeout=5)
+        import shutil
+        shutil.rmtree(frames_dir, ignore_errors=True)
 
     return assets
 
