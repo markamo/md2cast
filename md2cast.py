@@ -1536,6 +1536,12 @@ def _walk_markdown_blocks(md_text):
         prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
         skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
 
+        pause_match = re.match(r'^\s*<!--\s*pause\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
+        if pause_match:
+            yield ("directive", "pause", float(pause_match.group(1)), line)
+            i += 1
+            continue
+
         if directive_match:
             pending_directives[directive_match.group(1)] = True
             yield ("directive", directive_match.group(1), True, line)
@@ -1776,6 +1782,9 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
                         sections_html.append(f"<li>{_html_inline(li_match.group(2))}</li>")
                     else:
                         sections_html.append(f"<p>{_html_inline(line)}</p>")
+
+        elif event[0] == "directive":
+            pass  # directives don't appear in HTML
 
         elif event[0] == "skip":
             pass  # skip blocks don't appear in HTML
