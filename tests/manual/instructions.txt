@@ -1,0 +1,36 @@
+# 1. Basic — titles, sections, code blocks, quotes, hr
+  md2cast tests/manual/basic.md -o /tmp/basic.cast
+  asciinema play /tmp/basic.cast
+
+  # 2. Directives — prompt, type-delay, exec, skip, pause, clear, stacking
+  md2cast tests/manual/directives.md -o /tmp/directives.cast
+  asciinema play /tmp/directives.cast
+
+  # 3. Execute mode — real command output, view-exec, no-exec override
+  md2cast tests/manual/execute.md --execute -o /tmp/execute.cast
+  asciinema play /tmp/execute.cast
+
+  # 4. Split mode
+  md2cast tests/manual/basic.md --split -o /tmp/split/
+  ls /tmp/split/*.cast
+
+  # 5. Render (markdown + GIFs)
+  md2cast tests/manual/render.md --render -o /tmp/render-out.md
+  cat /tmp/render-out.md        # check GIF references + footer
+
+  # 6. Render HTML (interactive players)
+  md2cast tests/manual/render.md --render-html -o /tmp/render-out.html
+  xdg-open /tmp/render-out.html  # check players + footer
+
+  # 7. Theme override
+  md2cast tests/manual/basic.md --cols 80 --rows 24 --type-delay 0.01 -o /tmp/themed.cast
+
+  # 8. GIF generation
+  md2cast tests/manual/basic.md --gif -o /tmp/basic.cast
+
+  # 9. Browser capture (needs playwright)
+  md2cast tests/manual/browser.md --render -o /tmp/browser-out.md
+
+  # 10. GUI capture (needs xdotool + display)
+  md2cast tests/manual/gui.md --render -o /tmp/gui-out.md
+
