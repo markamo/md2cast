@@ -21,6 +21,8 @@ Usage:
   md2cast input.md --split                # one .cast per ## section
   md2cast input.md --list                 # list sections
   md2cast input.md --theme dark.json      # custom theme
+  md2cast input.md --mp4                  # generate MP4 video (agg + ffmpeg)
+  md2cast input.md --webm                 # generate WebM video (agg + ffmpeg)
   md2cast input.md --init-theme           # generate default theme file
 
 Markdown mapping:
@@ -1267,6 +1269,48 @@ def cast_to_gif(cast_path):
         print("  Error: agg timed out", file=sys.stderr)
 
 
+def gif_to_video(gif_path, fmt="mp4"):
+    """Convert a GIF to MP4 or WebM using ffmpeg.
+
+    Returns the video path on success, None on failure.
+    """
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+    video_path = os.path.splitext(gif_path)[0] + f".{fmt}"
+
+    if fmt == "mp4":
+        cmd = [
+            "ffmpeg", "-y", "-i", gif_path,
+            "-movflags", "faststart",
+            "-pix_fmt", "yuv420p",
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            video_path
+        ]
+    else:  # webm
+        cmd = [
+            "ffmpeg", "-y", "-i", gif_path,
+            "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
+            "-pix_fmt", "yuv420p",
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            video_path
+        ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            size = os.path.getsize(video_path)
+            size_str = f"{size/1024:.0f}KB" if size < 1024*1024 else f"{size/1024/1024:.1f}MB"
+            print(f"  {ok} {video_path} ({size_str})")
+            return video_path
+        else:
+            print(f"  {err} ffmpeg failed: {result.stderr.strip()[:200]}", file=sys.stderr)
+    except FileNotFoundError:
+        print(f"  {err} ffmpeg not found. Install: sudo apt install ffmpeg", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print(f"  {err} ffmpeg timed out", file=sys.stderr)
+    return None
+
+
 def image_to_gif_frame(image_path, width=800, bg_color=(13, 17, 23)):
     """Convert an image to a GIF-compatible frame, resized to fit terminal width.
 
@@ -2060,6 +2104,12 @@ def main():
     parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
     parser.add_argument("--gif", action="store_true",
                         help="Also generate GIF via agg (requires agg installed)")
+    parser.add_argument("--mp4", action="store_true",
+                        help="Generate MP4 video (requires agg + ffmpeg)")
+    parser.add_argument("--webm", action="store_true",
+                        help="Generate WebM video (requires agg + ffmpeg)")
+    parser.add_argument("--video", action="store_true",
+                        help="Alias for --mp4")
     parser.add_argument("--render", action="store_true",
                         help="Generate a new Markdown with embedded GIF screencasts for each code block")
     parser.add_argument("--render-html", action="store_true",
@@ -2202,8 +2252,14 @@ def main():
             renderer.render_blocks(section_blocks)
             cast.save(outfile)
             print(f"  {ok} {outfile}  ({strip_md(title)})")
-            if args.gif:
+            if args.gif or args.mp4 or args.webm or args.video:
                 cast_to_gif(outfile)
+                gp = os.path.splitext(outfile)[0] + ".gif"
+                if os.path.exists(gp):
+                    if args.mp4 or args.video:
+                        gif_to_video(gp, "mp4")
+                    if args.webm:
+                        gif_to_video(gp, "webm")
 
         print(f"\n  {len(sections)} cast(s) written to {out_dir}/")
         print(f"  Play: asciinema play {out_dir}/<name>.cast")
@@ -2234,15 +2290,21 @@ def main():
         print(f"\n  {ok} {outfile}")
         print(f"  Duration: {duration:.1f}s  Events: {event_count}")
         print(f"  Play: asciinema play {outfile}")
-        if args.gif:
+        want_gif = args.gif or args.mp4 or args.webm or args.video
+        if want_gif:
             cast_to_gif(outfile)
+            gif_path = os.path.splitext(outfile)[0] + ".gif"
             # Stitch images into the GIF if any were recorded
-            if renderer.image_markers and _HAS_PIL:
-                gif_path = os.path.splitext(outfile)[0] + ".gif"
-                if os.path.exists(gif_path):
-                    wd = args.working_dir or os.path.dirname(os.path.abspath(args.input))
-                    _stitch_images_into_gif(gif_path, renderer.image_markers,
-                                            working_dir=wd)
+            if renderer.image_markers and _HAS_PIL and os.path.exists(gif_path):
+                wd = args.working_dir or os.path.dirname(os.path.abspath(args.input))
+                _stitch_images_into_gif(gif_path, renderer.image_markers,
+                                        working_dir=wd)
+            # Convert GIF to video if requested
+            if os.path.exists(gif_path):
+                if args.mp4 or args.video:
+                    gif_to_video(gif_path, "mp4")
+                if args.webm:
+                    gif_to_video(gif_path, "webm")
         else:
             print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
         print()
