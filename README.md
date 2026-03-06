@@ -219,6 +219,10 @@ md2cast tutorial.md --execute -C /path/to/project
 
 This is useful for generating screencasts with real command output. Use `-C` to set the working directory.
 
+## Author
+
+Mark Amo-Boateng, PhD
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
