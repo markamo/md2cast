@@ -41,6 +41,10 @@
 
 ## Free Features (CLI)
 
+### Done
+- [x] Auto-size terminal rows to content (short blocks no longer waste 35 rows)
+- [x] "md2cast" watermark at bottom-right of every GIF
+
 ### In Progress
 - [ ] Bump version to 0.4.0
 - [ ] Update TUTORIAL.md with browser, GUI, render, render-html docs
@@ -69,8 +73,13 @@
 - [ ] GitHub Actions integration (`md2cast-action`)
 - [ ] VS Code extension (preview pane)
 
+## Watermark Strategy
+- **Free**: "md2cast" watermark on every GIF (bottom-right, dim text)
+- **Pro**: No watermark on GIFs (`--no-watermark` flag, license key check)
+- This is the Shutterstock model — free users get branded output, paying users get clean output
+
 ## Monetization Strategy
-- **Free tier**: CLI features (MIT license) — cast generation, all directives, themes, syntax highlighting, gif, render, render-html
-- **Pro tier ($12/mo)**: Browser + GUI capture, AI enhancement, priority support
+- **Free tier**: CLI features (MIT license) — cast generation, all directives, themes, syntax highlighting, gif, render, render-html. Watermark on GIFs.
+- **Pro tier ($12/mo)**: Browser + GUI capture, AI enhancement, no watermark, priority support
 - **Team tier ($25/user/mo)**: Pro + shared themes, CI/CD integration, private cast hosting
 - **Alternative**: Acquisition by docs platform (Mintlify, GitBook, ReadMe)
