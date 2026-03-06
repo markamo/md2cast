@@ -602,7 +602,19 @@ footer{
           <span class="line md-code" data-step="4">md2cast --version</span>
           <span class="line md-fence" data-step="4">```</span>
           <span class="line" data-step="4">&nbsp;</span>
-          <span class="line md-quote" data-step="5">&gt; Your docs are now alive.</span>
+          <span class="line md-fence" data-step="5">---</span>
+          <span class="line" data-step="5">&nbsp;</span>
+          <span class="line md-h" data-step="6">## Configuration</span>
+          <span class="line" data-step="6">&nbsp;</span>
+          <span class="line md-text" data-step="7">Create a config file:</span>
+          <span class="line" data-step="7">&nbsp;</span>
+          <span class="line md-dir" data-step="8">&lt;!-- type-delay 0.04 --&gt;</span>
+          <span class="line md-dir" data-step="8">&lt;!-- exec --&gt;</span>
+          <span class="line md-fence" data-step="8">```bash</span>
+          <span class="line md-code" data-step="8">my-tool init --template starter</span>
+          <span class="line md-fence" data-step="8">```</span>
+          <span class="line" data-step="8">&nbsp;</span>
+          <span class="line md-quote" data-step="9">&gt; Your docs are now alive.</span>
         </div>
       </div>
     </div>
@@ -1226,24 +1238,43 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
     {step:2, delay:800, lines:[
       '  <span class="t-ok">$</span> <span class="t-c" id="ht1"></span><span class="cursor"></span>'
     ], type:['ht1','pipx install md2cast']},
-    {step:2.5, delay:1400, lines:[
+    {step:2, delay:1400, lines:[
       '  <span class="t-m">  installed package md2cast 0.3.0</span>',
-      '  <span class="t-m">  These apps are now globally available</span>',
       '  <span class="t-m">    - md2cast</span>',
       '&nbsp;'
     ]},
-    {step:3, delay:1000, lines:[
+    {step:3, delay:900, lines:[
       '<span class="t-m">  # Verify it works:</span>',
       '&nbsp;'
     ]},
-    {step:4, delay:800, lines:[
+    {step:4, delay:700, lines:[
       '  <span class="t-ok">$</span> <span class="t-c" id="ht2"></span><span class="cursor"></span>'
     ], type:['ht2','md2cast --version']},
-    {step:4.5, delay:1200, lines:[
+    {step:4, delay:1000, lines:[
       '  <span class="t-m">md2cast 0.3.0</span>',
       '&nbsp;'
     ]},
-    {step:5, delay:1000, lines:[
+    {step:5, delay:800, lines:[
+      '&nbsp;',
+      '<span class="t-m" style="opacity:.4">  ─────────────────────────────────────────</span>',
+      '&nbsp;'
+    ]},
+    {step:6, delay:600, lines:[
+      '<span class="t-m">  # ══ Configuration ══════════════════════</span>',
+      '&nbsp;'
+    ]},
+    {step:7, delay:800, lines:[
+      '<span class="t-m">  # Create a config file:</span>',
+      '&nbsp;'
+    ]},
+    {step:8, delay:700, lines:[
+      '  <span class="t-ok">$</span> <span class="t-c" id="ht3"></span><span class="cursor"></span>'
+    ], type:['ht3','my-tool init --template starter']},
+    {step:8, delay:1200, lines:[
+      '  <span class="t-ok">✓</span> <span class="t-m">created config.yaml</span>',
+      '&nbsp;'
+    ]},
+    {step:9, delay:900, lines:[
       '<span class="t-warn">  ▌ Your docs are now alive.</span>',
       '&nbsp;',
       '<div style="text-align:right;padding-right:.5rem"><span class="t-m" style="font-size:.68rem">md2cast</span></div>'
