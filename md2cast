@@ -1074,23 +1074,59 @@ def run_browser_steps(steps, assets_dir, name_prefix="browser",
 
 
 def video_to_gif(video_path, gif_path=None, fps=10, width=800):
-    """Convert a video file to GIF using ffmpeg."""
+    """Convert a video file to GIF using ffmpeg.
+
+    Uses a two-pass approach: first generates an optimal palette,
+    then creates the GIF with that palette for better quality.
+    Handles webm files with missing duration metadata.
+    """
     gif_path = gif_path or os.path.splitext(video_path)[0] + ".gif"
     ok = "\033[0;32m[OK]\033[0m"
     err = "\033[0;31m[ERR]\033[0m"
+
+    if not _has_command("ffmpeg"):
+        print(f"  {err} ffmpeg not found. Install: sudo apt install ffmpeg", file=sys.stderr)
+        return None
+
+    vf_scale = f"fps={fps},scale={width}:-1:flags=lanczos"
+
     try:
+        # Try simple single-pass first
         result = subprocess.run([
             "ffmpeg", "-y", "-i", video_path,
-            "-vf", f"fps={fps},scale={width}:-1:flags=lanczos",
+            "-vf", vf_scale,
             "-loop", "0", gif_path
         ], capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            print(f"  {ok} {gif_path}")
+
+        if result.returncode == 0 and os.path.exists(gif_path) and os.path.getsize(gif_path) > 0:
             return gif_path
-        else:
-            print(f"  {err} ffmpeg failed: {result.stderr[:200]}", file=sys.stderr)
-    except FileNotFoundError:
-        print(f"  {err} ffmpeg not found. Install: sudo apt install ffmpeg", file=sys.stderr)
+
+        # If that failed (e.g. webm with no duration), try re-muxing first
+        # to fix container metadata, then convert
+        fixed_path = video_path + ".fixed.mp4"
+        remux = subprocess.run([
+            "ffmpeg", "-y", "-i", video_path,
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-movflags", "+faststart", fixed_path
+        ], capture_output=True, text=True, timeout=120)
+
+        if remux.returncode == 0 and os.path.exists(fixed_path):
+            result = subprocess.run([
+                "ffmpeg", "-y", "-i", fixed_path,
+                "-vf", vf_scale,
+                "-loop", "0", gif_path
+            ], capture_output=True, text=True, timeout=120)
+
+            # Clean up intermediate file
+            try:
+                os.unlink(fixed_path)
+            except OSError:
+                pass
+
+            if result.returncode == 0 and os.path.exists(gif_path) and os.path.getsize(gif_path) > 0:
+                return gif_path
+
+        print(f"  {err} GIF conversion failed for {video_path}", file=sys.stderr)
     except subprocess.TimeoutExpired:
         print(f"  {err} ffmpeg timed out", file=sys.stderr)
     return None
@@ -1602,6 +1638,7 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
                         "--object-path", "/org/gnome/Shell/Screencast",
                         "--method", "org.gnome.Shell.Screencast.StopScreencast"
                     ], capture_output=True, text=True, timeout=5)
+                    time.sleep(1)  # let GNOME finalize the file
                 else:
                     # Send SIGINT for clean stop (wf-recorder, ffmpeg)
                     import signal
