@@ -1439,6 +1439,31 @@ def cast_to_gif(cast_path):
         print("  Error: agg timed out", file=sys.stderr)
 
 
+def _estimate_block_rows(code_content, lang, dirs, execute=False):
+    """Estimate how many terminal rows a block needs.
+
+    Returns a row count sized to the content with padding,
+    so short blocks don't render with 35 rows of blank space.
+    """
+    lines = code_content.strip().split("\n")
+    is_command = lang in ("bash", "sh", "shell", "console", "zsh")
+
+    if is_command:
+        # Each command gets: prompt line + potential output
+        cmd_lines = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+        # Estimate: 1 line per command, 2 lines output each if executing, plus prompt spacing
+        if execute or dirs.get("exec"):
+            row_count = len(lines) + len(cmd_lines) * 2 + 2
+        else:
+            row_count = len(lines) + 2
+    else:
+        # Static output: just the lines
+        row_count = len(lines) + 2
+
+    # Add padding: 3 top + 2 bottom
+    return row_count + 5
+
+
 def _generate_block_cast(code_content, lang, dirs, theme, assets_dir, index,
                          section_name, execute=False, working_dir=None):
     """Generate a .cast file for a single code block. Returns (cast_name, cast_path)."""
@@ -1450,8 +1475,15 @@ def _generate_block_cast(code_content, lang, dirs, theme, assets_dir, index,
     force_output = dirs.get("output", False)
     is_view_exec = dirs.get("view-exec", False)
 
-    cast = CastWriter(theme, title=strip_md(section_name))
-    renderer = Renderer(cast, theme, execute=execute, working_dir=working_dir)
+    # Auto-size: use smaller row count for short blocks
+    block_rows = _estimate_block_rows(code_content, lang, dirs, execute)
+    block_rows = min(block_rows, theme.rows)  # never exceed theme max
+
+    # Create a copy of the theme with adjusted rows for this block
+    block_theme = _theme_with_rows(theme, block_rows)
+
+    cast = CastWriter(block_theme, title=strip_md(section_name))
+    renderer = Renderer(cast, block_theme, execute=execute, working_dir=working_dir)
     cast.pause(0.3)
 
     if is_view_exec and is_command:
@@ -1461,9 +1493,23 @@ def _generate_block_cast(code_content, lang, dirs, theme, assets_dir, index,
     else:
         renderer.render_output(code_content, lang=lang)
 
-    cast.pause(theme.end_pause)
+    # Watermark: dim "md2cast" at bottom-right of last frame
+    watermark = "md2cast"
+    pad = block_theme.cols - len(watermark) - 1
+    cast.write(f"\033[{block_rows};1H")  # move to last row
+    cast.write(f"\033[2m{' ' * pad}{watermark}\033[0m")
+
+    cast.pause(block_theme.end_pause)
     cast.save(cast_path)
     return cast_name, cast_path
+
+
+def _theme_with_rows(theme, rows):
+    """Create a shallow copy of a theme with a different row count."""
+    import copy
+    t = copy.copy(theme)
+    t.rows = rows
+    return t
 
 
 def _walk_markdown_blocks(md_text):
