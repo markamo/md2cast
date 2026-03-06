@@ -1,0 +1,583 @@
+#!/usr/bin/env python3
+"""
+md2cast — Convert Markdown documentation into asciinema screencasts.
+
+Parses a Markdown file and generates an asciinema v2 .cast file with:
+  - Title cards for # headings
+  - Section dividers for ## and ### headings
+  - Typed + optionally executed bash commands from ```bash blocks
+  - Static output display from plain ``` blocks
+  - Narrated comments from regular text
+  - Highlighted notes from > blockquotes
+  - Screen clears on --- separators
+
+Usage:
+  md2cast input.md                        # generate input.cast
+  md2cast input.md -o demo.cast           # custom output name
+  md2cast input.md --execute              # actually run bash commands
+  md2cast input.md --section 3            # only section 3
+  md2cast input.md --split                # one .cast per ## section
+  md2cast input.md --list                 # list sections
+  md2cast input.md --cols 120 --rows 40   # custom terminal size
+
+Markdown mapping:
+  # Heading          → title card (clear, box, pause)
+  ## Heading         → section divider (clear, banner)
+  ### Heading        → subsection label
+  Regular text       → narrated comment (dimmed)
+  ```bash            → typed command (green $ prompt, character-by-character)
+  ```                → static output (shown at once)
+  > blockquote       → hint/note (yellow)
+  **bold**           → emphasized narration
+  ---                → section break (clear screen)
+  <!-- pause 3 -->   → custom pause (seconds)
+  <!-- skip -->      → skip this block in cast output
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+__version__ = "0.1.0"
+
+# ── ANSI codes ──────────────────────────────────────────────────────────────
+
+BOLD = "\033[1m"
+DIM = "\033[2m"
+GREEN = "\033[0;32m"
+CYAN = "\033[0;36m"
+YELLOW = "\033[1;33m"
+RED = "\033[0;31m"
+MAGENTA = "\033[0;35m"
+NC = "\033[0m"
+
+# ── Asciinema v2 cast writer ───────────────────────────────────────────────
+
+class CastWriter:
+    """Generates asciinema v2 .cast format."""
+
+    def __init__(self, cols=110, rows=35, title=""):
+        self.cols = cols
+        self.rows = rows
+        self.title = title
+        self.events = []
+        self.time = 0.0
+
+    def _emit(self, text):
+        """Emit an output event at the current time."""
+        self.events.append([round(self.time, 4), "o", text])
+
+    def pause(self, seconds):
+        """Advance time without output."""
+        self.time += seconds
+
+    def write(self, text):
+        """Write text to terminal instantly."""
+        self._emit(text)
+
+    def write_line(self, text=""):
+        """Write a line to terminal."""
+        self._emit(text + "\r\n")
+
+    def type_text(self, text, delay=0.03):
+        """Type text character by character."""
+        for ch in text:
+            self._emit(ch)
+            self.time += delay
+
+    def clear(self):
+        """Clear screen."""
+        self._emit("\033[2J\033[H")
+
+    def save(self, path):
+        """Write the .cast file."""
+        header = {
+            "version": 2,
+            "width": self.cols,
+            "height": self.rows,
+        }
+        if self.title:
+            header["title"] = self.title
+        header["timestamp"] = int(time.time())
+
+        with open(path, "w") as f:
+            f.write(json.dumps(header) + "\n")
+            for event in self.events:
+                f.write(json.dumps(event) + "\n")
+
+
+# ── Markdown parser ────────────────────────────────────────────────────────
+
+class Block:
+    """A parsed markdown block."""
+    def __init__(self, kind, content, level=0, lang=""):
+        self.kind = kind        # heading, text, code, output, quote, hr, pause, skip
+        self.content = content  # raw text content
+        self.level = level      # heading level (1, 2, 3)
+        self.lang = lang        # code block language
+
+
+def parse_markdown(text):
+    """Parse markdown into a list of Blocks."""
+    blocks = []
+    lines = text.split("\n")
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        # HTML comment directives: <!-- pause 3 --> or <!-- skip -->
+        pause_match = re.match(r'^\s*<!--\s*pause\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
+        if pause_match:
+            blocks.append(Block("pause", pause_match.group(1)))
+            i += 1
+            continue
+
+        if re.match(r'^\s*<!--\s*skip\s*-->\s*$', line):
+            # Skip until next non-skip content or end of skip block
+            i += 1
+            # Skip the next block (code block or paragraph)
+            if i < len(lines) and lines[i].startswith("```"):
+                # Skip entire code block
+                i += 1
+                while i < len(lines) and not lines[i].startswith("```"):
+                    i += 1
+                i += 1  # skip closing ```
+            continue
+
+        # Fenced code block
+        code_match = re.match(r'^```(\w*)\s*$', line)
+        if code_match:
+            lang = code_match.group(1).lower()
+            i += 1
+            code_lines = []
+            while i < len(lines) and not lines[i].startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # skip closing ```
+
+            content = "\n".join(code_lines)
+            if lang in ("bash", "sh", "shell", "console", "zsh"):
+                blocks.append(Block("code", content, lang=lang))
+            elif lang in ("yaml", "json", "toml", "python", "py", "rust",
+                          "javascript", "js", "text", "ini", "conf", "cfg"):
+                blocks.append(Block("output", content, lang=lang))
+            elif lang == "":
+                # No language — treat as output
+                blocks.append(Block("output", content))
+            else:
+                blocks.append(Block("output", content, lang=lang))
+            continue
+
+        # Heading
+        heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            text_content = heading_match.group(2).strip()
+            blocks.append(Block("heading", text_content, level=level))
+            i += 1
+            continue
+
+        # Horizontal rule
+        if re.match(r'^---+\s*$', line) or re.match(r'^\*\*\*+\s*$', line):
+            blocks.append(Block("hr", ""))
+            i += 1
+            continue
+
+        # Blockquote
+        if line.startswith(">"):
+            quote_lines = []
+            while i < len(lines) and lines[i].startswith(">"):
+                quote_lines.append(re.sub(r'^>\s?', '', lines[i]))
+                i += 1
+            content = "\n".join(quote_lines)
+            blocks.append(Block("quote", content))
+            continue
+
+        # Regular text (paragraph)
+        if line.strip():
+            para_lines = []
+            while i < len(lines) and lines[i].strip() and not lines[i].startswith("#") \
+                    and not lines[i].startswith("```") and not lines[i].startswith(">") \
+                    and not re.match(r'^---+\s*$', lines[i]) \
+                    and not re.match(r'^\s*<!--', lines[i]):
+                para_lines.append(lines[i])
+                i += 1
+            content = " ".join(para_lines)
+            blocks.append(Block("text", content))
+            continue
+
+        # Blank line — skip
+        i += 1
+
+    return blocks
+
+
+# ── Markdown text cleaning ─────────────────────────────────────────────────
+
+def strip_md(text):
+    """Strip markdown formatting for plain display."""
+    # Bold
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    # Italic
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    # Inline code
+    text = re.sub(r'`(.+?)`', r'\1', text)
+    # Links [text](url)
+    text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
+    # Images
+    text = re.sub(r'!\[.*?\]\(.+?\)', '', text)
+    return text.strip()
+
+
+def word_wrap(text, width=100):
+    """Wrap text to fit terminal width."""
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        test = f"{current} {word}".strip() if current else word
+        if len(test) <= width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+# ── Screencast renderer ───────────────────────────────────────────────────
+
+class Renderer:
+    """Renders parsed blocks into a CastWriter."""
+
+    def __init__(self, cast, execute=False, type_delay=0.03, cmd_pause=0.8,
+                 output_pause=1.5, section_pause=2.0, text_pause=0.8,
+                 working_dir=None):
+        self.cast = cast
+        self.execute = execute
+        self.type_delay = type_delay
+        self.cmd_pause = cmd_pause
+        self.output_pause = output_pause
+        self.section_pause = section_pause
+        self.text_pause = text_pause
+        self.working_dir = working_dir
+
+    def render_title_card(self, title, subtitle=""):
+        """Render a title card with box drawing."""
+        self.cast.clear()
+        self.cast.pause(0.3)
+
+        w = 60
+        title_clean = strip_md(title)
+        sub_clean = strip_md(subtitle) if subtitle else ""
+
+        bar = "\u2550" * w
+        self.cast.write_line("")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2554{bar}\u2557{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{' ' * w}{BOLD}{CYAN}\u2551{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{BOLD}   {title_clean:<{w-3}}{CYAN}\u2551{NC}")
+        if sub_clean:
+            self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{DIM}   {sub_clean:<{w-3}}{CYAN}\u2551{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{' ' * w}{BOLD}{CYAN}\u2551{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u255a{bar}\u255d{NC}")
+        self.cast.write_line("")
+        self.cast.pause(self.section_pause)
+
+    def render_section(self, title):
+        """Render a section divider."""
+        self.cast.clear()
+        self.cast.pause(0.3)
+
+        title_clean = strip_md(title)
+        bar = "\u2500" * (len(title_clean) + 4)
+        self.cast.write_line("")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u250c{bar}\u2510{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2502{NC}{BOLD}  {title_clean}  {CYAN}\u2502{NC}")
+        self.cast.write_line(f"  {BOLD}{CYAN}\u2514{bar}\u2518{NC}")
+        self.cast.write_line("")
+        self.cast.pause(self.section_pause)
+
+    def render_subsection(self, title):
+        """Render a subsection label."""
+        self.cast.write_line("")
+        title_clean = strip_md(title)
+        self.cast.write_line(f"  {BOLD}{title_clean}{NC}")
+        self.cast.write_line("")
+        self.cast.pause(0.8)
+
+    def render_text(self, text):
+        """Render narrated text as dimmed comments."""
+        clean = strip_md(text)
+        lines = word_wrap(clean, 95)
+        self.cast.write_line("")
+        for line in lines:
+            self.cast.write_line(f"  {DIM}# {line}{NC}")
+        self.cast.pause(self.text_pause + len(lines) * 0.3)
+        self.cast.write_line("")
+
+    def render_quote(self, text):
+        """Render a blockquote as a highlighted note."""
+        clean = strip_md(text)
+        lines = word_wrap(clean, 90)
+        self.cast.write_line("")
+        for line in lines:
+            self.cast.write_line(f"  {YELLOW}\u2502 {line}{NC}")
+        self.cast.pause(self.text_pause + len(lines) * 0.4)
+        self.cast.write_line("")
+
+    def render_command(self, command):
+        """Type and optionally execute a bash command."""
+        for line in command.strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                # Comment line — show dimmed
+                self.cast.write_line(f"  {DIM}{line}{NC}")
+                self.cast.pause(0.3)
+                continue
+
+            # Type the command with green $ prompt
+            self.cast.write(f"{GREEN}$ {NC}")
+            self.cast.type_text(line, delay=self.type_delay)
+            self.cast.pause(self.cmd_pause)
+            self.cast.write_line("")
+
+            if self.execute:
+                try:
+                    result = subprocess.run(
+                        line, shell=True, capture_output=True, text=True,
+                        timeout=30, cwd=self.working_dir
+                    )
+                    output = result.stdout
+                    if result.stderr:
+                        output += result.stderr
+                    if output.strip():
+                        for out_line in output.rstrip().split("\n"):
+                            self.cast.write_line(out_line)
+                except subprocess.TimeoutExpired:
+                    self.cast.write_line(f"{RED}(command timed out){NC}")
+                except Exception as e:
+                    self.cast.write_line(f"{RED}(error: {e}){NC}")
+
+            self.cast.pause(self.output_pause)
+
+    def render_output(self, text):
+        """Show output text (not typed, shown at once)."""
+        if not text.strip():
+            return
+        for line in text.split("\n"):
+            self.cast.write_line(line)
+        self.cast.pause(self.output_pause)
+
+    def render_blocks(self, blocks):
+        """Render a list of blocks."""
+        # Look ahead for subtitle (text right after h1)
+        i = 0
+        while i < len(blocks):
+            block = blocks[i]
+
+            if block.kind == "heading":
+                if block.level == 1:
+                    # Look ahead for subtitle text
+                    subtitle = ""
+                    if i + 1 < len(blocks) and blocks[i + 1].kind in ("text", "quote"):
+                        subtitle = blocks[i + 1].content
+                    self.render_title_card(block.content, subtitle)
+                elif block.level == 2:
+                    self.render_section(block.content)
+                else:
+                    self.render_subsection(block.content)
+
+            elif block.kind == "text":
+                # Skip if already used as subtitle
+                if i > 0 and blocks[i - 1].kind == "heading" and blocks[i - 1].level == 1:
+                    pass  # already shown as subtitle
+                else:
+                    self.render_text(block.content)
+
+            elif block.kind == "code":
+                self.render_command(block.content)
+
+            elif block.kind == "output":
+                self.render_output(block.content)
+
+            elif block.kind == "quote":
+                # Skip if already used as subtitle
+                if i > 0 and blocks[i - 1].kind == "heading" and blocks[i - 1].level == 1:
+                    pass
+                else:
+                    self.render_quote(block.content)
+
+            elif block.kind == "hr":
+                self.cast.clear()
+                self.cast.pause(0.5)
+
+            elif block.kind == "pause":
+                self.cast.pause(float(block.content))
+
+            i += 1
+
+        # End card
+        self.cast.write_line("")
+        self.cast.pause(2)
+
+
+# ── Section splitting ──────────────────────────────────────────────────────
+
+def split_sections(blocks):
+    """Split blocks into sections at ## headings."""
+    sections = []
+    current = []
+    current_title = None
+
+    for block in blocks:
+        if block.kind == "heading" and block.level <= 2:
+            if current:
+                sections.append((current_title or "untitled", current))
+            current = [block]
+            current_title = block.content
+        else:
+            current.append(block)
+
+    if current:
+        sections.append((current_title or "untitled", current))
+
+    return sections
+
+
+def list_sections(blocks):
+    """Print a numbered list of sections."""
+    sections = split_sections(blocks)
+    for i, (title, section_blocks) in enumerate(sections, 1):
+        level = section_blocks[0].level if section_blocks and section_blocks[0].kind == "heading" else 0
+        prefix = "#" * level if level else " "
+        cmd_count = sum(1 for b in section_blocks if b.kind == "code")
+        print(f"  {i:3d}  {prefix} {strip_md(title):<50s}  ({cmd_count} commands)")
+
+
+# ── CLI ────────────────────────────────────────────────────────────────────
+
+def slugify(text):
+    """Convert text to a filename-safe slug."""
+    text = strip_md(text).lower()
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    return text.strip('-')[:60]
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="md2cast",
+        description="Convert Markdown documentation into asciinema screencasts.",
+        epilog="Examples:\n"
+               "  md2cast tutorial.md\n"
+               "  md2cast tutorial.md --execute --section 3\n"
+               "  md2cast tutorial.md --split -o output-dir/\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("input", help="Markdown file to convert")
+    parser.add_argument("-o", "--output", help="Output .cast file or directory (with --split)")
+    parser.add_argument("--execute", action="store_true",
+                        help="Actually execute bash commands (requires appropriate permissions)")
+    parser.add_argument("--section", type=int, help="Only render section N (1-indexed)")
+    parser.add_argument("--split", action="store_true",
+                        help="Generate one .cast per ## section")
+    parser.add_argument("--list", action="store_true",
+                        help="List sections and exit")
+    parser.add_argument("--cols", type=int, default=110, help="Terminal columns (default: 110)")
+    parser.add_argument("--rows", type=int, default=35, help="Terminal rows (default: 35)")
+    parser.add_argument("--type-delay", type=float, default=0.03,
+                        help="Delay between typed characters (default: 0.03)")
+    parser.add_argument("--working-dir", "-C", help="Working directory for executed commands")
+    parser.add_argument("--title", help="Override cast title")
+    parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
+
+    args = parser.parse_args()
+
+    # Read input
+    try:
+        with open(args.input, "r") as f:
+            md_text = f.read()
+    except FileNotFoundError:
+        print(f"Error: {args.input} not found", file=sys.stderr)
+        sys.exit(1)
+
+    blocks = parse_markdown(md_text)
+
+    # List mode
+    if args.list:
+        print(f"\nSections in {args.input}:\n")
+        list_sections(blocks)
+        print()
+        return
+
+    sections = split_sections(blocks)
+
+    # Section filter
+    if args.section:
+        if args.section < 1 or args.section > len(sections):
+            print(f"Error: section {args.section} out of range (1-{len(sections)})",
+                  file=sys.stderr)
+            sys.exit(1)
+        sections = [sections[args.section - 1]]
+
+    # Split mode
+    if args.split:
+        out_dir = args.output or os.path.splitext(args.input)[0] + "-casts"
+        os.makedirs(out_dir, exist_ok=True)
+
+        for i, (title, section_blocks) in enumerate(sections, 1):
+            slug = slugify(title)
+            outfile = os.path.join(out_dir, f"{i:02d}-{slug}.cast")
+            cast_title = args.title or strip_md(title)
+
+            cast = CastWriter(cols=args.cols, rows=args.rows, title=cast_title)
+            renderer = Renderer(
+                cast, execute=args.execute, type_delay=args.type_delay,
+                working_dir=args.working_dir,
+            )
+            renderer.render_blocks(section_blocks)
+            cast.save(outfile)
+            print(f"  {GREEN}[OK]{NC} {outfile}  ({strip_md(title)})")
+
+        print(f"\n  {len(sections)} cast(s) written to {out_dir}/")
+        print(f"  Play: asciinema play {out_dir}/<name>.cast")
+
+    else:
+        # Single file mode
+        outfile = args.output or os.path.splitext(args.input)[0] + ".cast"
+        first_title = ""
+        for b in blocks:
+            if b.kind == "heading":
+                first_title = strip_md(b.content)
+                break
+        cast_title = args.title or first_title
+
+        target_blocks = sections[0][1] if len(sections) == 1 else blocks
+        if args.section:
+            target_blocks = sections[0][1]
+
+        cast = CastWriter(cols=args.cols, rows=args.rows, title=cast_title)
+        renderer = Renderer(
+            cast, execute=args.execute, type_delay=args.type_delay,
+            working_dir=args.working_dir,
+        )
+        renderer.render_blocks(target_blocks)
+        cast.save(outfile)
+
+        duration = cast.time
+        event_count = len(cast.events)
+        print(f"\n  {GREEN}[OK]{NC} {outfile}")
+        print(f"  Duration: {duration:.1f}s  Events: {event_count}")
+        print(f"  Play: asciinema play {outfile}")
+        print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
+        print()
+
+
+if __name__ == "__main__":
+    main()
