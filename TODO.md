@@ -48,6 +48,17 @@
 - [ ] Bump version to 0.4.0
 - [ ] Update TUTORIAL.md with browser, GUI, render, render-html docs
 
+### Jupyter Notebook Support (`md2cast notebook.ipynb`)
+**Free:**
+- [ ] Read `.ipynb` JSON, map cells to cast (code → typed `In [N]:`, markdown → narration, text output → static)
+- [ ] Same 15-block limit, watermark
+
+**Pro:**
+- [ ] Re-execute cells in live kernel (`--execute`, needs `jupyter` installed)
+- [ ] Image/plot outputs embedded as assets (matplotlib, plotly, etc.)
+- [ ] Rich output rendering (HTML tables, LaTeX)
+- [ ] Unlimited blocks, no watermark
+
 ### Planned
 - [ ] `--watch` mode — regenerate on file change
 - [ ] `--preview` — play cast immediately after generation
@@ -81,6 +92,7 @@
 - Custom themes, syntax highlighting
 - `--gif` (agg conversion)
 - Auto-sized rows
+- Basic Jupyter notebook support (read saved outputs, `In [N]:` prompts)
 - **Limits**: 10 sections (`--split`), 15 code blocks per doc
 - **Watermark**: "md2cast" on every GIF (cannot be removed)
 
@@ -89,6 +101,7 @@
 - `--no-watermark` — clean GIFs
 - Browser capture (`<!-- browser -->` + Playwright)
 - GUI capture (`<!-- gui -->` + screenshots)
+- Jupyter: live kernel execution, image/plot output, rich rendering
 - AI enhance (`md2cast enhance` — auto-insert directives)
 - AI narrate / AI review (future)
 - Built-in theme gallery
