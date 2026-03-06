@@ -31,8 +31,16 @@ Markdown mapping:
   > blockquote       → hint/note (yellow)
   **bold**           → emphasized narration
   ---                → section break (clear screen)
-  <!-- pause 3 -->   → custom pause (seconds)
-  <!-- skip -->      → skip this block in cast output
+
+Directives (HTML comments — invisible in rendered Markdown):
+  <!-- pause 3 -->        → custom pause (seconds)
+  <!-- skip -->           → skip the next block entirely
+  <!-- exec -->           → execute only the next bash block (no global --execute needed)
+  <!-- no-exec -->        → skip execution for the next block (even with --execute)
+  <!-- type-delay 0.01 --> → override typing speed for the next block
+  <!-- prompt # -->       → change prompt character for the next block (e.g., root shell)
+  <!-- output -->         → force next ```bash block to display as static output
+  <!-- clear -->          → clear screen (alternative to ---)
 """
 
 import argparse
@@ -43,7 +51,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # ── Theme ──────────────────────────────────────────────────────────────────
 
@@ -300,11 +308,12 @@ class CastWriter:
 
 class Block:
     """A parsed markdown block."""
-    def __init__(self, kind, content, level=0, lang=""):
+    def __init__(self, kind, content, level=0, lang="", directives=None):
         self.kind = kind        # heading, text, code, output, quote, hr, pause, skip
         self.content = content  # raw text content
         self.level = level      # heading level (1, 2, 3)
         self.lang = lang        # code block language
+        self.directives = directives or {}  # per-block overrides from <!-- --> comments
 
 
 def parse_markdown(text):
@@ -312,11 +321,12 @@ def parse_markdown(text):
     blocks = []
     lines = text.split("\n")
     i = 0
+    pending_directives = {}  # accumulate directives for the next block
 
     while i < len(lines):
         line = lines[i]
 
-        # HTML comment directives: <!-- pause 3 --> or <!-- skip -->
+        # HTML comment directives: <!-- pause 3 -->, <!-- skip -->, etc.
         pause_match = re.match(r'^\s*<!--\s*pause\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
         if pause_match:
             blocks.append(Block("pause", pause_match.group(1)))
@@ -332,6 +342,38 @@ def parse_markdown(text):
                 i += 1
             continue
 
+        if re.match(r'^\s*<!--\s*clear\s*-->\s*$', line):
+            blocks.append(Block("hr", ""))
+            i += 1
+            continue
+
+        if re.match(r'^\s*<!--\s*exec\s*-->\s*$', line):
+            pending_directives["exec"] = True
+            i += 1
+            continue
+
+        if re.match(r'^\s*<!--\s*no-exec\s*-->\s*$', line):
+            pending_directives["no-exec"] = True
+            i += 1
+            continue
+
+        if re.match(r'^\s*<!--\s*output\s*-->\s*$', line):
+            pending_directives["output"] = True
+            i += 1
+            continue
+
+        td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
+        if td_match:
+            pending_directives["type-delay"] = float(td_match.group(1))
+            i += 1
+            continue
+
+        prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
+        if prompt_match:
+            pending_directives["prompt"] = prompt_match.group(1)
+            i += 1
+            continue
+
         # Fenced code block
         code_match = re.match(r'^```(\w*)\s*$', line)
         if code_match:
@@ -344,10 +386,16 @@ def parse_markdown(text):
             i += 1  # skip closing ```
 
             content = "\n".join(code_lines)
-            if lang in ("bash", "sh", "shell", "console", "zsh"):
-                blocks.append(Block("code", content, lang=lang))
+            dirs = pending_directives
+            pending_directives = {}
+
+            # <!-- output --> forces bash blocks to be shown as static output
+            if dirs.get("output") and lang in ("bash", "sh", "shell", "console", "zsh"):
+                blocks.append(Block("output", content, lang=lang, directives=dirs))
+            elif lang in ("bash", "sh", "shell", "console", "zsh"):
+                blocks.append(Block("code", content, lang=lang, directives=dirs))
             else:
-                blocks.append(Block("output", content, lang=lang))
+                blocks.append(Block("output", content, lang=lang, directives=dirs))
             continue
 
         # Heading
@@ -503,9 +551,25 @@ class Renderer:
         self.cast.pause(t.text_pause + len(lines) * 0.4)
         self.cast.write_line("")
 
-    def render_command(self, command):
-        """Type and optionally execute a bash command."""
+    def render_command(self, command, directives=None):
+        """Type and optionally execute a bash command.
+
+        Directives (from HTML comments):
+          exec       — execute this block even without global --execute
+          no-exec    — skip execution even with global --execute
+          type-delay — override typing speed for this block
+          prompt     — override prompt character (e.g., "#" for root)
+        """
         t = self.t
+        dirs = directives or {}
+        do_exec = self.execute
+        if dirs.get("exec"):
+            do_exec = True
+        if dirs.get("no-exec"):
+            do_exec = False
+        type_delay = dirs.get("type-delay", t.type_delay)
+        prompt_char = dirs.get("prompt", "$")
+
         for line in command.strip().split("\n"):
             line = line.strip()
             if not line or line.startswith("#"):
@@ -514,16 +578,16 @@ class Renderer:
                 continue
 
             # Type the command with prompt
-            self.cast.write(f"{t.prompt}$ {t.nc}")
+            self.cast.write(f"{t.prompt}{prompt_char} {t.nc}")
             if t.command:
                 self.cast.write(t.command)
-            self.cast.type_text(line)
+            self.cast.type_text(line, delay=type_delay)
             if t.command:
                 self.cast.write(t.nc)
             self.cast.pause(t.cmd_pause)
             self.cast.write_line("")
 
-            if self.execute:
+            if do_exec:
                 try:
                     result = subprocess.run(
                         line, shell=True, capture_output=True, text=True,
@@ -581,7 +645,7 @@ class Renderer:
                     self.render_text(block.content)
 
             elif block.kind == "code":
-                self.render_command(block.content)
+                self.render_command(block.content, directives=block.directives)
 
             elif block.kind == "output":
                 self.render_output(block.content)

@@ -59,6 +59,31 @@ md2cast tutorial.md --theme my-theme.json
 | `<!-- pause 3 -->` | Custom pause (seconds) |
 | `<!-- skip -->` | Skip the next block |
 
+### Directives
+
+HTML comment directives give per-block control without breaking normal Markdown rendering:
+
+| Directive | Effect |
+|-----------|--------|
+| `<!-- exec -->` | Execute only the next bash block (no global `--execute` needed) |
+| `<!-- no-exec -->` | Skip execution for the next block (even with `--execute`) |
+| `<!-- type-delay 0.01 -->` | Override typing speed for the next block |
+| `<!-- prompt # -->` | Change prompt character (e.g., `#` for root, `>>>` for Python) |
+| `<!-- output -->` | Force next ` ```bash ` block to display as static output |
+| `<!-- clear -->` | Clear screen (alternative to `---`) |
+| `<!-- skip -->` | Skip the next block entirely |
+| `<!-- pause 3 -->` | Pause for N seconds |
+
+Directives apply to the next block only and can be stacked:
+
+```markdown
+<!-- prompt # -->
+<!-- type-delay 0.08 -->
+` ` `bash
+apt install -y nginx
+` ` `
+```
+
 ## Themes
 
 Customize colors, terminal size, timing, and asciinema player settings with a JSON config file.
