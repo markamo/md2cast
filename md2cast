@@ -1153,78 +1153,77 @@ def _detect_display_server():
     return None
 
 
-def _portal_screenshot(output_path, err_prefix):
-    """Take a screenshot via the freedesktop D-Bus portal.
 
-    Works on any modern Wayland compositor (GNOME, KDE, etc.)
-    without compositor-specific protocols like wlr-screencopy.
+def _portal_screenshot_silent(output_path):
+    """Take a screenshot via XDG Desktop Portal — silent, no flash.
+
+    Works on GNOME, KDE, and any compositor supporting the portal.
+    Uses dbus-python + GLib to handle the async response signal.
     """
-    if not _has_command("gdbus"):
-        print(f"  {err_prefix} No screenshot method available. Install: gnome-screenshot or grim",
-              file=sys.stderr)
-        return False
-
     try:
-        # Call the portal — it returns a request path
-        result = subprocess.run([
-            "gdbus", "call", "--session",
-            "--dest", "org.freedesktop.portal.Desktop",
-            "--object-path", "/org/freedesktop/portal/desktop",
-            "--method", "org.freedesktop.portal.Screenshot.Screenshot",
-            "", "{}"
-        ], capture_output=True, text=True, timeout=10)
+        import dbus
+        from dbus.mainloop.glib import DBusGMainLoop
+        from gi.repository import GLib
 
-        if result.returncode != 0:
-            print(f"  {err_prefix} Portal screenshot failed: {result.stderr[:200]}",
-                  file=sys.stderr)
-            return False
+        DBusGMainLoop(set_as_default=True)
+        bus = dbus.SessionBus()
+        result_uri = [None]
+        loop = GLib.MainLoop()
 
-        # Portal saves to a temporary file — we need to find it
-        # The portal is async and may prompt the user, so use a simpler approach:
-        # Use gnome-screenshot via D-Bus Shell.Screenshot interface
-        result = subprocess.run([
-            "gdbus", "call", "--session",
-            "--dest", "org.gnome.Shell",
-            "--object-path", "/org/gnome/Shell/Screenshot",
-            "--method", "org.gnome.Shell.Screenshot.Screenshot",
-            "false", "true", output_path
-        ], capture_output=True, text=True, timeout=10)
+        def on_response(response, results):
+            if response == 0 and 'uri' in results:
+                result_uri[0] = str(results['uri'])
+            loop.quit()
 
-        if result.returncode == 0 and os.path.exists(output_path):
-            return True
+        proxy = bus.get_object('org.freedesktop.portal.Desktop',
+                               '/org/freedesktop/portal/desktop')
+        iface = dbus.Interface(proxy, 'org.freedesktop.portal.Screenshot')
 
-        # Try GNOME 46+ ScreenshotPortal
-        result = subprocess.run([
-            "gdbus", "call", "--session",
-            "--dest", "org.gnome.Shell.Screenshot",
-            "--object-path", "/org/gnome/Shell/Screenshot",
-            "--method", "org.gnome.Shell.Screenshot.Screenshot",
-            "false", "true", output_path
-        ], capture_output=True, text=True, timeout=10)
+        options = dbus.Dictionary({'interactive': dbus.Boolean(False)}, signature='sv')
+        request_path = iface.Screenshot('', options)
 
-        if result.returncode == 0 and os.path.exists(output_path):
-            return True
+        bus.add_signal_receiver(on_response,
+            signal_name='Response',
+            dbus_interface='org.freedesktop.portal.Request',
+            path=request_path)
 
-        print(f"  {err_prefix} Portal screenshot failed. Try: sudo apt install gnome-screenshot",
-              file=sys.stderr)
-        return False
+        GLib.timeout_add(5000, loop.quit)
+        loop.run()
 
-    except subprocess.TimeoutExpired:
-        print(f"  {err_prefix} Portal screenshot timed out", file=sys.stderr)
-        return False
+        if result_uri[0]:
+            src = result_uri[0].replace('file://', '')
+            if os.path.exists(src):
+                import shutil
+                shutil.copy2(src, output_path)
+                try:
+                    os.unlink(src)  # clean up portal temp file
+                except OSError:
+                    pass
+                return True
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return False
 
 
 def _gui_screenshot(output_path, region=None):
     """Take a screenshot of the desktop or a region.
 
+    Prefers the XDG portal (silent, no flash) on Wayland.
+    Falls back to grim, gnome-screenshot, or X11 tools.
+
     region: (x, y, width, height) or None for full screen.
     """
     display = _detect_display_server()
-    ok = "\033[0;32m[OK]\033[0m"
     err = "\033[0;31m[ERR]\033[0m"
 
     if display == "wayland":
-        # Build ordered list of screenshot methods to try
+        # Best method: XDG portal (silent, no flash, works on all compositors)
+        if not region and _portal_screenshot_silent(output_path):
+            return True
+
+        # Fallback to CLI tools
         methods = []
         if _has_command("grim"):
             cmd = ["grim"]
@@ -1232,20 +1231,14 @@ def _gui_screenshot(output_path, region=None):
                 x, y, w, h = region
                 cmd += ["-g", f"{x},{y} {w}x{h}"]
             cmd.append(output_path)
-            methods.append(("grim", cmd))
+            methods.append(cmd)
         if _has_command("gnome-screenshot"):
-            cmd = ["gnome-screenshot", "-f", output_path]
-            if region:
-                x, y, w, h = region
-                cmd = ["gnome-screenshot", "-a", "-f", output_path]  # area mode (interactive)
-            methods.append(("gnome-screenshot", cmd))
+            methods.append(["gnome-screenshot", "-f", output_path])
         if _has_command("spectacle"):
-            methods.append(("spectacle", ["spectacle", "-b", "-n", "-o", output_path]))
+            methods.append(["spectacle", "-b", "-n", "-o", output_path])
 
-        # Try each tool, fall through on failure
-        # Suppress gnome-screenshot shutter sound via canberra env var
         silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
-        for name, cmd in methods:
+        for cmd in methods:
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
                                         env=silent_env)
@@ -1254,11 +1247,13 @@ def _gui_screenshot(output_path, region=None):
             except subprocess.TimeoutExpired:
                 pass
 
-        # Last resort: freedesktop portal (works on GNOME, KDE, etc.)
-        return _portal_screenshot(output_path, err)
+        print(f"  {err} No screenshot method worked. Need: dbus-python + pygobject, grim, or gnome-screenshot",
+              file=sys.stderr)
+        return False
 
     # X11 tools
-    elif _has_command("import"):
+    cmd = None
+    if _has_command("import"):
         cmd = ["import", "-window", "root"]
         if region:
             x, y, w, h = region
@@ -1268,15 +1263,14 @@ def _gui_screenshot(output_path, region=None):
         cmd = ["scrot", output_path]
     elif _has_command("gnome-screenshot"):
         cmd = ["gnome-screenshot", "-f", output_path]
-    else:
-        print(f"  {err} No screenshot tool found. Install: sudo apt install scrot (X11) or grim (Wayland)",
+
+    if not cmd:
+        print(f"  {err} No screenshot tool found. Install: sudo apt install scrot",
               file=sys.stderr)
         return False
 
     try:
-        silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
-                                env=silent_env)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
             return True
         else:
