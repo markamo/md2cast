@@ -60,6 +60,12 @@ md2cast tutorial.md --execute
 # Custom terminal size
 md2cast tutorial.md --cols 120 --rows 40
 
+# Generate cast + GIF in one step (requires agg)
+md2cast tutorial.md --gif
+
+# Split into sections and generate GIFs for each
+md2cast tutorial.md --split --gif
+
 # Use a custom theme
 md2cast tutorial.md --theme my-theme.json
 ```

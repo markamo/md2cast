@@ -292,13 +292,19 @@ class CastWriter:
             header["title"] = self.title
         header["timestamp"] = int(time.time())
 
-        # Player metadata (used by asciinema web player / agg)
+        # Standard asciinema v2 fields
         if t.env:
-            header["env"] = t.env
-        if t.player_theme:
-            header["theme"] = {"name": t.player_theme}
+            header["env"] = dict(t.env)
         if t.idle_time_limit:
             header["idle_time_limit"] = t.idle_time_limit
+
+        # Player metadata (used by asciinema web player embeds, ignored by agg)
+        if t.player_theme:
+            header["env"]["THEME"] = t.player_theme
+        if t.font_family:
+            header.setdefault("env", {})["FONT_FAMILY"] = t.font_family
+        if t.font_size:
+            header.setdefault("env", {})["FONT_SIZE"] = str(t.font_size)
 
         with open(path, "w") as f:
             f.write(json.dumps(header) + "\n")
@@ -707,6 +713,27 @@ def list_sections(blocks):
 
 # ── CLI ────────────────────────────────────────────────────────────────────
 
+def cast_to_gif(cast_path):
+    """Convert a .cast file to .gif using agg."""
+    gif_path = os.path.splitext(cast_path)[0] + ".gif"
+    try:
+        result = subprocess.run(
+            ["agg", cast_path, gif_path],
+            capture_output=True, text=True, timeout=120
+        )
+        ok = "\033[0;32m[OK]\033[0m"
+        err = "\033[0;31m[ERR]\033[0m"
+        if result.returncode == 0:
+            print(f"  {ok} {gif_path}")
+        else:
+            print(f"  {err} agg failed: {result.stderr.strip()}", file=sys.stderr)
+    except FileNotFoundError:
+        print("  Error: agg not found. Install from https://github.com/asciinema/agg/releases",
+              file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("  Error: agg timed out", file=sys.stderr)
+
+
 def slugify(text):
     """Convert text to a filename-safe slug."""
     text = strip_md(text).lower()
@@ -742,6 +769,8 @@ def main():
     parser.add_argument("--working-dir", "-C", help="Working directory for executed commands")
     parser.add_argument("--title", help="Override cast title")
     parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
+    parser.add_argument("--gif", action="store_true",
+                        help="Also generate GIF via agg (requires agg installed)")
     parser.add_argument("--init-theme", action="store_true",
                         help="Print default theme JSON and exit (redirect to a file to customize)")
     parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
@@ -826,6 +855,8 @@ def main():
             renderer.render_blocks(section_blocks)
             cast.save(outfile)
             print(f"  {ok} {outfile}  ({strip_md(title)})")
+            if args.gif:
+                cast_to_gif(outfile)
 
         print(f"\n  {len(sections)} cast(s) written to {out_dir}/")
         print(f"  Play: asciinema play {out_dir}/<name>.cast")
@@ -856,7 +887,10 @@ def main():
         print(f"\n  {ok} {outfile}")
         print(f"  Duration: {duration:.1f}s  Events: {event_count}")
         print(f"  Play: asciinema play {outfile}")
-        print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
+        if args.gif:
+            cast_to_gif(outfile)
+        else:
+            print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
         print()
 
 
