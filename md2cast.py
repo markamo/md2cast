@@ -24,9 +24,9 @@ Usage:
   md2cast input.md --init-theme           # generate default theme file
 
 Markdown mapping:
-  # Heading          → title card (clear, box, pause)
-  ## Heading         → section divider (clear, banner)
-  ### Heading        → subsection label
+  # Heading          → title card (configurable: box/line/text/none)
+  ## Heading         → section divider (configurable: box/line/text/none)
+  ### Heading        → subsection label (configurable: box/line/text/none)
   Regular text       → narrated comment (dimmed)
   ```bash            → typed command (green $ prompt, character-by-character)
   ```                → static output (shown at once)
@@ -227,6 +227,31 @@ DEFAULT_THEME = {
         "section_pause": 2.0,
         "text_pause": 0.8,
         "end_pause": 2.0
+    },
+    "headings": {
+        "h1": {
+            "style": "box",
+            "clear": True,
+            "width": 60,
+            "align": "left",
+            "border": "double",
+            "padding": 1
+        },
+        "h2": {
+            "style": "box",
+            "clear": True,
+            "width": "auto",
+            "align": "center",
+            "border": "single",
+            "padding": 0
+        },
+        "h3": {
+            "style": "text",
+            "clear": False,
+            "prefix": "",
+            "suffix": "",
+            "align": "left"
+        }
     }
 }
 
@@ -276,6 +301,12 @@ class Theme:
         self.section_pause = tm.get("section_pause", 2.0)
         self.text_pause = tm.get("text_pause", 0.8)
         self.end_pause = tm.get("end_pause", 2.0)
+
+        # Heading formats (Pro)
+        h = cfg.get("headings", {})
+        self.h1 = h.get("h1", DEFAULT_THEME["headings"]["h1"])
+        self.h2 = h.get("h2", DEFAULT_THEME["headings"]["h2"])
+        self.h3 = h.get("h3", DEFAULT_THEME["headings"]["h3"])
 
 
 def _deep_merge(base, override):
@@ -580,51 +611,109 @@ class Renderer:
         self.execute = execute
         self.working_dir = working_dir
 
-    def render_title_card(self, title, subtitle=""):
-        """Render a title card with box drawing."""
-        self.cast.clear()
-        self.cast.pause(0.3)
+    def _render_heading_box(self, title, hcfg, color_border, color_text, subtitle=""):
+        """Render a heading as a box with configurable border, width, alignment."""
         t = self.t
-
-        w = 60
         title_clean = strip_md(title)
         sub_clean = strip_md(subtitle) if subtitle else ""
 
-        bar = "\u2550" * w
+        border = hcfg.get("border", "double")
+        w = hcfg.get("width", 60)
+        if w == "auto":
+            w = max(len(title_clean) + 4, len(sub_clean) + 4 if sub_clean else 0)
+        pad = hcfg.get("padding", 1)
+        align = hcfg.get("align", "left")
+
+        # Border characters
+        if border == "double":
+            tl, tr, bl, br, h, v = "\u2554", "\u2557", "\u255a", "\u255d", "\u2550", "\u2551"
+        elif border == "heavy":
+            tl, tr, bl, br, h, v = "\u250f", "\u2513", "\u2517", "\u251b", "\u2501", "\u2503"
+        elif border == "rounded":
+            tl, tr, bl, br, h, v = "\u256d", "\u256e", "\u2570", "\u256f", "\u2500", "\u2502"
+        else:  # single
+            tl, tr, bl, br, h, v = "\u250c", "\u2510", "\u2514", "\u2518", "\u2500", "\u2502"
+
+        bar = h * w
+
+        def align_text(text, width):
+            if align == "center":
+                return text.center(width)
+            elif align == "right":
+                return text.rjust(width - 1) + " "
+            return f"   {text:<{width-3}}"
+
         self.cast.write_line("")
-        self.cast.write_line(f"  {t.title_border}\u2554{bar}\u2557{t.nc}")
-        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{' ' * w}{t.title_border}\u2551{t.nc}")
-        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{t.title_text}   {title_clean:<{w-3}}{t.title_border}\u2551{t.nc}")
+        self.cast.write_line(f"  {color_border}{tl}{bar}{tr}{t.nc}")
+        for _ in range(pad):
+            self.cast.write_line(f"  {color_border}{v}{t.nc}{' ' * w}{color_border}{v}{t.nc}")
+        self.cast.write_line(f"  {color_border}{v}{t.nc}{color_text}{align_text(title_clean, w)}{color_border}{v}{t.nc}")
         if sub_clean:
-            self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{t.narration}   {sub_clean:<{w-3}}{t.title_border}\u2551{t.nc}")
-        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{' ' * w}{t.title_border}\u2551{t.nc}")
-        self.cast.write_line(f"  {t.title_border}\u255a{bar}\u255d{t.nc}")
+            self.cast.write_line(f"  {color_border}{v}{t.nc}{t.narration}{align_text(sub_clean, w)}{color_border}{v}{t.nc}")
+        for _ in range(pad):
+            self.cast.write_line(f"  {color_border}{v}{t.nc}{' ' * w}{color_border}{v}{t.nc}")
+        self.cast.write_line(f"  {color_border}{bl}{bar}{br}{t.nc}")
         self.cast.write_line("")
-        self.cast.pause(t.section_pause)
+
+    def _render_heading_line(self, title, hcfg, color_border, color_text):
+        """Render a heading as a decorated line."""
+        t = self.t
+        title_clean = strip_md(title)
+        prefix = hcfg.get("prefix", "\u2500\u2500 ")
+        suffix = hcfg.get("suffix", " " + "\u2500" * 30)
+        align = hcfg.get("align", "left")
+
+        if align == "center":
+            fill = "\u2500" * 10
+            line = f"  {color_border}{fill} {color_text}{title_clean}{t.nc} {color_border}{fill}{t.nc}"
+        else:
+            line = f"  {color_border}{prefix}{color_text}{title_clean}{t.nc}{color_border}{suffix}{t.nc}"
+        self.cast.write_line("")
+        self.cast.write_line(line)
+        self.cast.write_line("")
+
+    def _render_heading_text(self, title, hcfg, color_text):
+        """Render a heading as styled text."""
+        t = self.t
+        title_clean = strip_md(title)
+        prefix = hcfg.get("prefix", "")
+        suffix = hcfg.get("suffix", "")
+        self.cast.write_line("")
+        self.cast.write_line(f"  {color_text}{prefix}{title_clean}{suffix}{t.nc}")
+        self.cast.write_line("")
+
+    def _render_heading(self, title, hcfg, color_border, color_text, subtitle=""):
+        """Route to the right heading renderer based on style."""
+        t = self.t
+        if hcfg.get("clear", False):
+            self.cast.clear()
+            self.cast.pause(0.3)
+
+        style = hcfg.get("style", "box")
+        if style == "box":
+            self._render_heading_box(title, hcfg, color_border, color_text, subtitle)
+        elif style == "line":
+            self._render_heading_line(title, hcfg, color_border, color_text)
+        elif style == "text":
+            self._render_heading_text(title, hcfg, color_text)
+        elif style == "none":
+            pass
+        else:
+            self._render_heading_box(title, hcfg, color_border, color_text, subtitle)
+
+        self.cast.pause(t.section_pause if hcfg.get("clear", False) else 0.8)
+
+    def render_title_card(self, title, subtitle=""):
+        """Render a # heading (h1)."""
+        self._render_heading(title, self.t.h1, self.t.title_border, self.t.title_text, subtitle)
 
     def render_section(self, title):
-        """Render a section divider."""
-        self.cast.clear()
-        self.cast.pause(0.3)
-        t = self.t
-
-        title_clean = strip_md(title)
-        bar = "\u2500" * (len(title_clean) + 4)
-        self.cast.write_line("")
-        self.cast.write_line(f"  {t.section_border}\u250c{bar}\u2510{t.nc}")
-        self.cast.write_line(f"  {t.section_border}\u2502{t.nc}{t.section_text}  {title_clean}  {t.section_border}\u2502{t.nc}")
-        self.cast.write_line(f"  {t.section_border}\u2514{bar}\u2518{t.nc}")
-        self.cast.write_line("")
-        self.cast.pause(t.section_pause)
+        """Render a ## heading (h2)."""
+        self._render_heading(title, self.t.h2, self.t.section_border, self.t.section_text)
 
     def render_subsection(self, title):
-        """Render a subsection label."""
-        t = self.t
-        self.cast.write_line("")
-        title_clean = strip_md(title)
-        self.cast.write_line(f"  {t.subsection}{title_clean}{t.nc}")
-        self.cast.write_line("")
-        self.cast.pause(0.8)
+        """Render a ### heading (h3)."""
+        self._render_heading(title, self.t.h3, self.t.subsection, self.t.subsection)
 
     def render_text(self, text):
         """Render narrated text as dimmed comments."""
