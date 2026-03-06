@@ -898,10 +898,55 @@ class TestParseGuiSteps(unittest.TestCase):
         self.assertEqual(steps[0]["action"], "sleep")
         self.assertEqual(steps[0]["seconds"], 2.0)
 
+    def test_screenshot_region(self):
+        steps = m.parse_gui_steps("screenshot --region 100,200 800x600 panel")
+        self.assertEqual(steps[0]["action"], "screenshot")
+        self.assertEqual(steps[0]["region"], (100, 200, 800, 600))
+        self.assertEqual(steps[0]["name"], "panel")
+
+    def test_screenshot_region_no_name(self):
+        steps = m.parse_gui_steps("screenshot --region 0,0 1920x1080")
+        self.assertEqual(steps[0]["region"], (0, 0, 1920, 1080))
+        self.assertIsNone(steps[0]["name"])
+
+    def test_screenshot_window(self):
+        steps = m.parse_gui_steps('screenshot --window Firefox browser')
+        self.assertEqual(steps[0]["action"], "window-screenshot")
+        self.assertEqual(steps[0]["title"], "Firefox")
+        self.assertEqual(steps[0]["name"], "browser")
+
+    def test_record_start(self):
+        steps = m.parse_gui_steps("record start demo")
+        self.assertEqual(steps[0]["action"], "record_start")
+        self.assertEqual(steps[0]["name"], "demo")
+
+    def test_record_stop(self):
+        steps = m.parse_gui_steps("record stop")
+        self.assertEqual(steps[0]["action"], "record_stop")
+
+    def test_record_start_no_name(self):
+        steps = m.parse_gui_steps("record start")
+        self.assertEqual(steps[0]["action"], "record_start")
+        self.assertIsNone(steps[0]["name"])
+
     def test_multiple_steps(self):
         text = "launch code .\nsleep 2\nscreenshot editor\n"
         steps = m.parse_gui_steps(text)
         self.assertEqual(len(steps), 3)
+
+    def test_full_workflow(self):
+        text = ("screenshot before\n"
+                "record start demo\n"
+                "sleep 3\n"
+                "record stop\n"
+                "screenshot after\n")
+        steps = m.parse_gui_steps(text)
+        self.assertEqual(len(steps), 5)
+        self.assertEqual(steps[0]["action"], "screenshot")
+        self.assertEqual(steps[1]["action"], "record_start")
+        self.assertEqual(steps[2]["action"], "sleep")
+        self.assertEqual(steps[3]["action"], "record_stop")
+        self.assertEqual(steps[4]["action"], "screenshot")
 
 
 # ── Theme auto-discovery ─────────────────────────────────────────────────

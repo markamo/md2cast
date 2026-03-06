@@ -2,20 +2,48 @@
 
 Run with: `md2cast tests/manual/gui.md --render`
 
-Requires: `xdotool` (X11) or `ydotool` (Wayland) + screenshot tool
+Requires: screenshot tool (gnome-screenshot, grim, scrot, or import)
 
-## Launch App
-
-```bash
-echo "Launching application..."
-```
-
-## Desktop Capture
+## Full Desktop Screenshot
 
 <!-- gui -->
 ```steps
+screenshot full-desktop
+```
+
+## Region Screenshot
+
+Captures a 400x300 area starting at coordinates 100,100:
+
+<!-- gui -->
+```steps
+screenshot --region 100,100 400x300 top-left-region
+```
+
+## Multiple Screenshots
+
+Take several screenshots in sequence:
+
+<!-- gui -->
+```steps
+screenshot step-1
 sleep 1
-screenshot desktop-current
+screenshot step-2
+sleep 1
+screenshot step-3
+```
+
+## Screen Recording
+
+Record the desktop for 3 seconds, auto-converts to GIF:
+
+Requires: `wf-recorder` (Wayland) or `ffmpeg` (X11)
+
+<!-- gui -->
+```steps
+record start demo-recording
+sleep 3
+record stop
 ```
 
 ## Done

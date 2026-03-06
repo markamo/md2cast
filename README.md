@@ -374,14 +374,22 @@ tail -f /var/log/app.log
 
 ## GUI Capture
 
-Capture desktop application interactions with screenshots. Requires `xdotool` (X11) or `ydotool` (Wayland), plus a screenshot tool (`grim`, `scrot`, or ImageMagick `import`).
+Capture desktop application interactions with screenshots and screen recordings. Requires a screenshot tool and optionally a screen recorder.
 
 ```bash
-# X11
-sudo apt install xdotool scrot
+# Wayland (GNOME)
+sudo apt install gnome-screenshot    # screenshots (silent, no shutter sound)
+sudo apt install wf-recorder         # screen recording (optional)
 
-# Wayland
-sudo apt install ydotool grim
+# Wayland (Sway/Hyprland)
+sudo apt install grim wf-recorder
+
+# X11
+sudo apt install scrot xdotool
+
+# Input automation (optional — for click, type, key actions)
+sudo apt install xdotool    # X11
+sudo apt install ydotool    # Wayland
 ```
 
 Use the `<!-- gui -->` directive before a code block containing GUI steps:
@@ -412,10 +420,14 @@ screenshot editor-typed
 | `move <x> <y>` | `move 500 300` | Move mouse to coordinates |
 | `drag <x1> <y1> <x2> <y2>` | `drag 100 100 500 500` | Drag from one point to another |
 | `screenshot [name]` | `screenshot editor` | Capture full screen |
-| `window-screenshot [name]` | `window-screenshot editor` | Capture focused window only |
+| `screenshot --region <x>,<y> <w>x<h> [name]` | `screenshot --region 100,100 800x600 panel` | Capture a screen region |
+| `screenshot --window <title> [name]` | `screenshot --window "Firefox" browser` | Capture a specific window |
+| `window-screenshot <title> [name]` | `window-screenshot "VS Code" editor` | Capture window (alias) |
+| `record start [name]` | `record start demo` | Start screen recording |
+| `record stop` | `record stop` | Stop recording (auto-converts to GIF) |
 | `sleep <seconds>` | `sleep 2` | Wait N seconds |
 
-Screenshots are embedded as images in `--render` output. Auto-detects X11 vs Wayland for the correct tooling.
+Screenshots are silent (no shutter sound). Screen recordings are auto-converted to GIF via ffmpeg. Auto-detects X11 vs Wayland for the correct tooling.
 
 Mix all three block types freely — terminal, browser, and GUI — in one document:
 

@@ -1198,15 +1198,22 @@ def _gui_screenshot(output_path, region=None):
             cmd.append(output_path)
             methods.append(("grim", cmd))
         if _has_command("gnome-screenshot"):
-            methods.append(("gnome-screenshot", ["gnome-screenshot", "-f", output_path]))
+            cmd = ["gnome-screenshot", "-f", output_path]
+            if region:
+                x, y, w, h = region
+                cmd = ["gnome-screenshot", "-a", "-f", output_path]  # area mode (interactive)
+            methods.append(("gnome-screenshot", cmd))
         if _has_command("spectacle"):
             methods.append(("spectacle", ["spectacle", "-b", "-n", "-o", output_path]))
 
         # Try each tool, fall through on failure
+        # Suppress gnome-screenshot shutter sound via canberra env var
+        silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
         for name, cmd in methods:
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                                        env=silent_env)
+                if result.returncode == 0 and os.path.exists(output_path):
                     return True
             except subprocess.TimeoutExpired:
                 pass
@@ -1231,7 +1238,9 @@ def _gui_screenshot(output_path, region=None):
         return False
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                                env=silent_env)
         if result.returncode == 0:
             return True
         else:
@@ -1352,16 +1361,20 @@ def parse_gui_steps(text):
     """Parse a GUI steps block into a list of action dicts.
 
     Supported actions:
-      launch <command>              — launch an application
-      focus <window-title>          — focus a window by title
-      click <x> <y>                — click at screen coordinates
-      type <text>                   — type text via keyboard
-      key <combo>                   — press key combo (e.g., ctrl+s, alt+F4)
-      move <x> <y>                 — move mouse to coordinates
-      drag <x1> <y1> <x2> <y2>    — drag from one point to another
-      screenshot [name]             — capture full screen
-      window-screenshot <title> [name] — capture specific window
-      sleep <seconds>               — wait N seconds
+      launch <command>                        — launch an application
+      focus <window-title>                    — focus a window by title
+      click <x> <y>                          — click at screen coordinates
+      type <text>                             — type text via keyboard
+      key <combo>                             — press key combo (e.g., ctrl+s, alt+F4)
+      move <x> <y>                           — move mouse to coordinates
+      drag <x1> <y1> <x2> <y2>              — drag from one point to another
+      screenshot [name]                       — capture full screen
+      screenshot --region <x>,<y> <w>x<h> [name]  — capture a region
+      screenshot --window <title> [name]      — capture a specific window
+      window-screenshot <title> [name]        — capture specific window (alias)
+      record start [name]                     — start screen recording
+      record stop                             — stop recording → auto-convert to GIF
+      sleep <seconds>                         — wait N seconds
     """
     steps = []
     for line in text.strip().split("\n"):
@@ -1397,18 +1410,66 @@ def parse_gui_steps(text):
                           "x1": int(coords[0]), "y1": int(coords[1]),
                           "x2": int(coords[2]), "y2": int(coords[3])})
         elif action == "screenshot":
-            steps.append({"action": "screenshot", "name": args.strip() or None})
+            args_parts = args.split()
+            if args_parts and args_parts[0] == "--region":
+                # screenshot --region x,y wxh [name]
+                region_str = args_parts[1] if len(args_parts) > 1 else "0,0"
+                size_str = args_parts[2] if len(args_parts) > 2 else "800x600"
+                name = args_parts[3] if len(args_parts) > 3 else None
+                rx, ry = [int(v) for v in region_str.split(",")]
+                rw, rh = [int(v) for v in size_str.lower().split("x")]
+                steps.append({"action": "screenshot", "name": name,
+                              "region": (rx, ry, rw, rh)})
+            elif args_parts and args_parts[0] == "--window":
+                # screenshot --window "Title" [name]
+                rest = args[len("--window"):].strip()
+                # Parse quoted title or single word
+                if rest.startswith('"'):
+                    end_q = rest.index('"', 1)
+                    title = rest[1:end_q]
+                    name = rest[end_q+1:].strip() or None
+                else:
+                    ws = rest.split(None, 1)
+                    title = ws[0]
+                    name = ws[1].strip() if len(ws) > 1 else None
+                steps.append({"action": "window-screenshot", "title": title, "name": name})
+            else:
+                steps.append({"action": "screenshot", "name": args.strip() or None})
         elif action == "window-screenshot":
             ws_parts = args.split(None, 1)
             title = ws_parts[0] if ws_parts else ""
             name = ws_parts[1] if len(ws_parts) > 1 else None
             steps.append({"action": "window-screenshot", "title": title, "name": name})
+        elif action == "record":
+            rec_parts = args.split(None, 1)
+            if rec_parts and rec_parts[0] == "stop":
+                steps.append({"action": "record_stop"})
+            else:
+                name = rec_parts[1] if len(rec_parts) > 1 else None
+                steps.append({"action": "record_start", "name": name})
         elif action == "sleep":
             steps.append({"action": "sleep", "seconds": float(args)})
         else:
             steps.append({"action": "unknown", "raw": line})
 
     return steps
+
+
+def _find_screen_recorder():
+    """Find an available screen recorder for the current display server."""
+    display = _detect_display_server()
+    if display == "wayland":
+        # wf-recorder for wlroots, or GNOME screencast via D-Bus
+        if _has_command("wf-recorder"):
+            return "wf-recorder"
+        if _has_command("kooha"):
+            return "kooha"
+    if _has_command("ffmpeg"):
+        # ffmpeg can record X11 via x11grab, or Wayland via pipewire
+        return "ffmpeg"
+    if _has_command("recordmydesktop"):
+        return "recordmydesktop"
+    return None
 
 
 def run_gui_steps(steps, assets_dir, name_prefix="gui"):
@@ -1421,6 +1482,8 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
 
     assets = []
     screenshot_count = 0
+    recording_proc = None
+    recording_path = None
     ok = "\033[0;32m[OK]\033[0m"
     err = "\033[0;31m[ERR]\033[0m"
 
@@ -1431,20 +1494,17 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
             try:
                 subprocess.Popen(step["command"], shell=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                import time as _time
-                _time.sleep(2)  # wait for app to start
+                time.sleep(2)  # wait for app to start
             except Exception as e:
                 print(f"  {err} Launch failed: {e}", file=sys.stderr)
 
         elif action == "focus":
             _gui_input("focus", title=step["title"])
-            import time as _time
-            _time.sleep(0.5)
+            time.sleep(0.5)
 
         elif action == "click":
             _gui_input("click", x=step["x"], y=step["y"])
-            import time as _time
-            _time.sleep(0.3)
+            time.sleep(0.3)
 
         elif action == "type":
             _gui_input("type", text=step["text"])
@@ -1463,7 +1523,8 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
             screenshot_count += 1
             shot_name = step.get("name") or f"{screenshot_count:02d}"
             shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
-            if _gui_screenshot(shot_path):
+            region = step.get("region")  # (x, y, w, h) or None
+            if _gui_screenshot(shot_path, region=region):
                 assets.append({"type": "screenshot", "path": shot_path})
                 print(f"  {ok} {shot_path}")
             else:
@@ -1479,12 +1540,77 @@ def run_gui_steps(steps, assets_dir, name_prefix="gui"):
             else:
                 print(f"  {err} Failed: {shot_path}", file=sys.stderr)
 
+        elif action == "record_start":
+            rec_name = step.get("name") or "recording"
+            recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.mp4")
+            recorder = _find_screen_recorder()
+
+            if recorder == "wf-recorder":
+                recording_proc = subprocess.Popen(
+                    ["wf-recorder", "-f", recording_path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif recorder == "ffmpeg":
+                if display == "x11":
+                    disp = os.environ.get("DISPLAY", ":0")
+                    recording_proc = subprocess.Popen(
+                        ["ffmpeg", "-y", "-f", "x11grab", "-framerate", "15",
+                         "-i", disp, "-c:v", "libx264", "-preset", "ultrafast",
+                         recording_path],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    print(f"  {err} ffmpeg screen recording on Wayland requires PipeWire. "
+                          f"Install: sudo apt install wf-recorder", file=sys.stderr)
+                    recording_proc = None
+            else:
+                print(f"  {err} No screen recorder found. Install: sudo apt install wf-recorder (Wayland) "
+                      f"or use ffmpeg (X11)", file=sys.stderr)
+                recording_proc = None
+
+            if recording_proc:
+                print(f"  Recording started → {recording_path}")
+                time.sleep(0.5)  # let recorder initialize
+
+        elif action == "record_stop":
+            if recording_proc:
+                # Send SIGINT for clean stop
+                import signal
+                recording_proc.send_signal(signal.SIGINT)
+                try:
+                    recording_proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    recording_proc.kill()
+                    recording_proc.wait()
+
+                if recording_path and os.path.exists(recording_path):
+                    # Convert to GIF
+                    gif_path = video_to_gif(recording_path)
+                    if gif_path:
+                        assets.append({"type": "video", "path": gif_path})
+                        print(f"  {ok} {gif_path}")
+                    else:
+                        assets.append({"type": "video", "path": recording_path})
+                        print(f"  {ok} {recording_path} (no GIF conversion)")
+
+                recording_proc = None
+                recording_path = None
+            else:
+                print(f"  {err} No recording in progress", file=sys.stderr)
+
         elif action == "sleep":
-            import time as _time
-            _time.sleep(step["seconds"])
+            time.sleep(step["seconds"])
 
         elif action == "unknown":
             print(f"  {err} Unknown GUI action: {step['raw']}", file=sys.stderr)
+
+    # Clean up recording if still running
+    if recording_proc:
+        import signal
+        recording_proc.send_signal(signal.SIGINT)
+        try:
+            recording_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            recording_proc.kill()
 
     return assets
 
