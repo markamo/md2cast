@@ -1126,14 +1126,23 @@ def _gui_screenshot(output_path, region=None):
     ok = "\033[0;32m[OK]\033[0m"
     err = "\033[0;31m[ERR]\033[0m"
 
-    if display == "wayland" and _has_command("grim"):
-        cmd = ["grim"]
-        if region:
-            x, y, w, h = region
-            cmd += ["-g", f"{x},{y} {w}x{h}"]
-        cmd.append(output_path)
+    if display == "wayland":
+        if _has_command("grim"):
+            cmd = ["grim"]
+            if region:
+                x, y, w, h = region
+                cmd += ["-g", f"{x},{y} {w}x{h}"]
+            cmd.append(output_path)
+        elif _has_command("gnome-screenshot"):
+            cmd = ["gnome-screenshot", "-f", output_path]
+        elif _has_command("spectacle"):
+            cmd = ["spectacle", "-b", "-n", "-o", output_path]
+        else:
+            print(f"  {err} No Wayland screenshot tool found. Install: sudo apt install grim",
+                  file=sys.stderr)
+            return False
     elif _has_command("import"):
-        # ImageMagick import
+        # ImageMagick import (X11 only)
         cmd = ["import", "-window", "root"]
         if region:
             x, y, w, h = region
