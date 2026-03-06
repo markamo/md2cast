@@ -122,13 +122,13 @@ HTML comment directives give per-block control without breaking normal Markdown 
 
 Directives apply to the next block only and can be stacked:
 
-```markdown
+````markdown
 <!-- prompt # -->
 <!-- type-delay 0.08 -->
 ```bash
 apt install -y nginx
 ```
-```
+````
 
 ## Features
 
