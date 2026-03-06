@@ -28,6 +28,12 @@
 
 ---
 
+<p align="center">
+  <img src="assets/demo.gif" alt="md2cast demo" width="640">
+</p>
+
+---
+
 Write your tutorial in Markdown. Run one command. Get a `.cast` file you can play, embed, or share as a GIF.
 
 ## Install
