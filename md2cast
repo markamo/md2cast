@@ -856,115 +856,149 @@ def cast_to_gif(cast_path):
         print("  Error: agg timed out", file=sys.stderr)
 
 
-def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None):
-    """Generate a new Markdown with GIF screencasts embedded above code blocks.
+def _generate_block_cast(code_content, lang, dirs, theme, assets_dir, index,
+                         section_name, execute=False, working_dir=None):
+    """Generate a .cast file for a single code block. Returns (cast_name, cast_path)."""
+    slug = slugify(section_name)
+    cast_name = f"{index:02d}-{slug}"
+    cast_path = os.path.join(assets_dir, f"{cast_name}.cast")
 
-    For each bash code block, generates a mini .cast → .gif showing the command
-    being typed. The original code block is preserved below for copy-paste.
-    Non-bash code blocks get syntax-highlighted GIFs too.
+    is_command = lang in ("bash", "sh", "shell", "console", "zsh")
+    force_output = dirs.get("output", False)
+    is_view_exec = dirs.get("view-exec", False)
 
-    Returns the new Markdown text and the number of GIFs generated.
+    cast = CastWriter(theme, title=strip_md(section_name))
+    renderer = Renderer(cast, theme, execute=execute, working_dir=working_dir)
+    cast.pause(0.3)
+
+    if is_view_exec and is_command:
+        renderer.render_view_exec(code_content, directives=dirs)
+    elif is_command and not force_output:
+        renderer.render_command(code_content, directives=dirs)
+    else:
+        renderer.render_output(code_content, lang=lang)
+
+    cast.pause(theme.end_pause)
+    cast.save(cast_path)
+    return cast_name, cast_path
+
+
+def _walk_markdown_blocks(md_text):
+    """Walk markdown line by line, yielding structured events.
+
+    Yields tuples of:
+      ("line", line_text)
+      ("directive", key, value, line_text)
+      ("skip", [lines including skip comment and code block])
+      ("code", lang, code_lines, original_lines, directives)
     """
-    os.makedirs(assets_dir, exist_ok=True)
     lines = md_text.split("\n")
-    output_lines = []
-    gif_count = 0
-    current_section = "intro"
     pending_directives = {}
     i = 0
 
     while i < len(lines):
         line = lines[i]
 
-        # Track current section for naming
-        heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
-        if heading_match:
-            current_section = strip_md(heading_match.group(2))
-
-        # Collect directives (pass through to output AND use for generation)
-        pause_match = re.match(r'^\s*<!--\s*pause\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
-        skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
+        # Directives
         directive_match = re.match(
             r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear)\s*-->\s*$', line)
         td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
         prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
+        skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
 
         if directive_match:
             pending_directives[directive_match.group(1)] = True
-            output_lines.append(line)
+            yield ("directive", directive_match.group(1), True, line)
             i += 1
             continue
         if td_match:
             pending_directives["type-delay"] = float(td_match.group(1))
-            output_lines.append(line)
+            yield ("directive", "type-delay", float(td_match.group(1)), line)
             i += 1
             continue
         if prompt_match:
             pending_directives["prompt"] = prompt_match.group(1)
-            output_lines.append(line)
+            yield ("directive", "prompt", prompt_match.group(1), line)
             i += 1
             continue
 
-        # Skip directive — pass through, skip the code block
+        # Skip — consume the next code block too
         if skip_match:
-            output_lines.append(line)
+            skip_lines = [line]
             i += 1
             if i < len(lines) and lines[i].startswith("```"):
-                output_lines.append(lines[i])
+                skip_lines.append(lines[i])
                 i += 1
                 while i < len(lines) and not lines[i].startswith("```"):
-                    output_lines.append(lines[i])
+                    skip_lines.append(lines[i])
                     i += 1
                 if i < len(lines):
-                    output_lines.append(lines[i])
+                    skip_lines.append(lines[i])
                     i += 1
+            yield ("skip", skip_lines)
             continue
 
-        # Fenced code block — generate GIF
+        # Fenced code block
         code_match = re.match(r'^```(\w*)\s*$', line)
         if code_match:
             lang = code_match.group(1).lower()
-            code_start = i
+            original_lines = [line]
             i += 1
             code_lines = []
             while i < len(lines) and not lines[i].startswith("```"):
                 code_lines.append(lines[i])
+                original_lines.append(lines[i])
                 i += 1
-            i += 1  # skip closing ```
+            if i < len(lines):
+                original_lines.append(lines[i])
+                i += 1
 
-            code_content = "\n".join(code_lines)
             dirs = pending_directives
             pending_directives = {}
+            yield ("code", lang, code_lines, original_lines, dirs)
+            continue
 
-            # Determine if this is a command block or output block
-            is_command = lang in ("bash", "sh", "shell", "console", "zsh")
-            force_output = dirs.get("output", False)
-            is_view_exec = dirs.get("view-exec", False)
+        yield ("line", line)
+        i += 1
 
-            # Generate a GIF for this block
-            gif_count += 1
-            slug = slugify(current_section)
-            cast_name = f"{gif_count:02d}-{slug}"
-            cast_path = os.path.join(assets_dir, f"{cast_name}.cast")
-            gif_path = os.path.join(assets_dir, f"{cast_name}.gif")
 
-            # Build a mini cast for just this block
-            cast = CastWriter(theme, title=strip_md(current_section))
-            renderer = Renderer(cast, theme, execute=execute, working_dir=working_dir)
-            cast.pause(0.3)
+def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None):
+    """Generate a new Markdown with GIF screencasts embedded above code blocks.
 
-            if is_view_exec and is_command:
-                block = Block("code", code_content, lang=lang, directives=dirs)
-                renderer.render_view_exec(code_content, directives=dirs)
-            elif is_command and not force_output:
-                renderer.render_command(code_content, directives=dirs)
-            else:
-                renderer.render_output(code_content, lang=lang)
+    Returns the new Markdown text and the number of GIFs generated.
+    """
+    os.makedirs(assets_dir, exist_ok=True)
+    output_lines = []
+    block_count = 0
+    current_section = "intro"
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
 
-            cast.pause(theme.end_pause)
-            cast.save(cast_path)
+    for event in _walk_markdown_blocks(md_text):
+        if event[0] == "line":
+            line = event[1]
+            heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+            if heading_match:
+                current_section = strip_md(heading_match.group(2))
+            output_lines.append(line)
+
+        elif event[0] == "directive":
+            output_lines.append(event[3])
+
+        elif event[0] == "skip":
+            output_lines.extend(event[1])
+
+        elif event[0] == "code":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+
+            cast_name, cast_path = _generate_block_cast(
+                code_content, lang, dirs, theme, assets_dir,
+                block_count, current_section, execute, working_dir)
 
             # Convert to GIF
+            gif_path = os.path.splitext(cast_path)[0] + ".gif"
             gif_ok = False
             try:
                 result = subprocess.run(
@@ -975,12 +1009,8 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 pass
 
-            ok = "\033[0;32m[OK]\033[0m"
-            err = "\033[0;31m[ERR]\033[0m"
             if gif_ok:
                 print(f"  {ok} {gif_path}")
-                # Insert GIF reference above the code block
-                # Use relative path from output markdown location
                 rel_gif = os.path.join(os.path.basename(assets_dir), f"{cast_name}.gif")
                 alt_text = strip_md(current_section)
                 output_lines.append(f"![{alt_text}]({rel_gif})")
@@ -988,18 +1018,200 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
             else:
                 print(f"  {err} Failed to generate {gif_path}", file=sys.stderr)
 
-            # Preserve the original code block for copy-paste
-            output_lines.append(f"```{code_match.group(1)}")
-            for cl in code_lines:
-                output_lines.append(cl)
-            output_lines.append("```")
-            continue
+            output_lines.extend(original_lines)
 
-        # Pass through all other lines unchanged
-        output_lines.append(line)
-        i += 1
+    return "\n".join(output_lines), block_count
 
-    return "\n".join(output_lines), gif_count
+
+def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
+    """Generate a self-contained HTML page with embedded asciinema players.
+
+    Returns the HTML string and the number of players generated.
+    """
+    os.makedirs(assets_dir, exist_ok=True)
+    block_count = 0
+    current_section = "intro"
+    page_title = ""
+    sections_html = []
+    ok = "\033[0;32m[OK]\033[0m"
+
+    for event in _walk_markdown_blocks(md_text):
+        if event[0] == "line":
+            line = event[1]
+            heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+            if heading_match:
+                level = len(heading_match.group(1))
+                title = strip_md(heading_match.group(2))
+                current_section = title
+                if level == 1 and not page_title:
+                    page_title = title
+                sections_html.append(f"<h{level}>{_html_escape(title)}</h{level}>")
+            elif line.startswith(">"):
+                text = strip_md(re.sub(r'^>\s?', '', line))
+                sections_html.append(f'<blockquote><p>{_html_escape(text)}</p></blockquote>')
+            elif re.match(r'^---+\s*$', line) or re.match(r'^\*\*\*+\s*$', line):
+                sections_html.append("<hr>")
+            elif line.strip():
+                # Check if it's a list item
+                li_match = re.match(r'^(\s*[-*])\s+(.+)$', line)
+                if li_match:
+                    sections_html.append(f"<li>{_html_escape(strip_md(li_match.group(2)))}</li>")
+                else:
+                    sections_html.append(f"<p>{_html_escape(strip_md(line))}</p>")
+
+        elif event[0] == "skip":
+            pass  # skip blocks don't appear in HTML
+
+        elif event[0] == "code":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+
+            cast_name, cast_path = _generate_block_cast(
+                code_content, lang, dirs, theme, assets_dir,
+                block_count, current_section, execute, working_dir)
+
+            print(f"  {ok} {cast_path}")
+
+            rel_cast = os.path.join(os.path.basename(assets_dir), f"{cast_name}.cast")
+            player_id = f"player-{block_count}"
+
+            # Collapsible code block + player
+            escaped_code = _html_escape(code_content)
+            lang_label = lang.upper() if lang else "OUTPUT"
+            sections_html.append(f'''<div class="cast-block">
+  <div id="{player_id}" class="player"></div>
+  <details>
+    <summary>{lang_label} — click to copy</summary>
+    <pre><code class="language-{lang or 'text'}">{escaped_code}</code></pre>
+  </details>
+  <script>AsciinemaPlayer.create('{rel_cast}', document.getElementById('{player_id}'), {{
+    theme: '{theme.player_theme or "monokai"}',
+    fontFamily: '{theme.font_family or "monospace"}',
+    fontSize: '{theme.font_size or 16}px',
+    idleTimeLimit: {theme.idle_time_limit or 3},
+    cols: {theme.cols},
+    rows: {_player_rows(code_lines, theme)},
+    fit: 'width',
+    autoPlay: false,
+    preload: true
+  }});</script>
+</div>''')
+
+    body = "\n".join(sections_html)
+    html = _html_template(page_title or "Documentation", body, theme)
+    return html, block_count
+
+
+def _player_rows(code_lines, theme):
+    """Calculate appropriate player rows — just enough to show the content."""
+    # Commands: prompt line + output lines; output: just the lines
+    # Add a few rows for padding, cap at theme.rows
+    return min(len(code_lines) + 5, theme.rows)
+
+
+def _html_escape(text):
+    """Escape HTML special characters."""
+    return (text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;"))
+
+
+def _html_template(title, body, theme):
+    """Generate the full HTML page with embedded asciinema player."""
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{_html_escape(title)}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+<style>
+  :root {{
+    --bg: #1a1b26;
+    --fg: #c0caf5;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --border: #292e42;
+    --code-bg: #24283b;
+    --blockquote-border: #e0af68;
+  }}
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    font-family: {theme.font_family or "'Inter', system-ui, sans-serif"};
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }}
+  h1 {{
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+    color: #c0caf5;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+  }}
+  h2 {{
+    font-size: 1.5rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+  }}
+  h3 {{ font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--fg); }}
+  p {{ margin: 0.8rem 0; }}
+  li {{ margin: 0.3rem 0 0.3rem 1.5rem; }}
+  hr {{ border: none; border-top: 1px solid var(--border); margin: 2rem 0; }}
+  blockquote {{
+    border-left: 3px solid var(--blockquote-border);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--muted);
+    background: rgba(224, 175, 104, 0.05);
+    border-radius: 0 4px 4px 0;
+  }}
+  .cast-block {{
+    margin: 1.5rem 0;
+  }}
+  .player {{
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }}
+  details {{
+    margin-top: 0.5rem;
+  }}
+  summary {{
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    user-select: none;
+  }}
+  summary:hover {{ color: var(--accent); }}
+  pre {{
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+  }}
+  code {{
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.9rem;
+    color: var(--fg);
+  }}
+  /* Asciinema player overrides */
+  .ap-wrapper {{ border-radius: 8px !important; }}
+</style>
+</head>
+<body>
+{body}
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js"></script>
+</body>
+</html>'''
 
 
 def slugify(text):
@@ -1041,6 +1253,8 @@ def main():
                         help="Also generate GIF via agg (requires agg installed)")
     parser.add_argument("--render", action="store_true",
                         help="Generate a new Markdown with embedded GIF screencasts for each code block")
+    parser.add_argument("--render-html", action="store_true",
+                        help="Generate an HTML page with embedded asciinema players for each code block")
     parser.add_argument("--init-theme", action="store_true",
                         help="Print default theme JSON and exit (redirect to a file to customize)")
     parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
@@ -1111,6 +1325,30 @@ def main():
         ok = "\033[0;32m[OK]\033[0m"
         print(f"\n  {ok} {out_md}  ({gif_count} GIFs)")
         print(f"  Assets: {assets_dir}/")
+        print()
+        return
+
+    # Render HTML mode — generate HTML page with asciinema players
+    if args.render_html:
+        base = os.path.splitext(args.input)[0]
+        out_html = args.output or f"{base}.html"
+        assets_dir = os.path.join(os.path.dirname(out_html) or ".", "assets")
+
+        print(f"\n  Rendering {args.input} → {out_html}\n")
+        html, player_count = render_html(
+            md_text, theme,
+            assets_dir=assets_dir,
+            execute=args.execute,
+            working_dir=args.working_dir,
+        )
+
+        with open(out_html, "w") as f:
+            f.write(html)
+
+        ok = "\033[0;32m[OK]\033[0m"
+        print(f"\n  {ok} {out_html}  ({player_count} players)")
+        print(f"  Assets: {assets_dir}/")
+        print(f"  Open:   xdg-open {out_html}")
         print()
         return
 

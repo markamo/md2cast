@@ -70,6 +70,9 @@ md2cast tutorial.md --split --gif
 # Render: generate new Markdown with GIFs embedded above code blocks
 md2cast tutorial.md --render
 
+# Render: generate HTML page with interactive asciinema players
+md2cast tutorial.md --render-html
+
 # Use a custom theme
 md2cast tutorial.md --theme my-theme.json
 ```
@@ -276,6 +279,25 @@ Custom output path:
 
 ```bash
 md2cast tutorial.md --render -o docs/VISUAL-GUIDE.md
+```
+
+## Render HTML Mode
+
+Generate a self-contained HTML page with interactive asciinema players:
+
+```bash
+md2cast tutorial.md --render-html
+```
+
+This produces:
+- `tutorial.html` — dark-themed HTML page with a playable asciinema player for each code block
+- `assets/` — directory containing `.cast` files
+
+Each player supports play/pause, speed control, and text selection. Code blocks are available in a collapsible "click to copy" section below each player.
+
+```bash
+md2cast tutorial.md --render-html -o docs/visual-guide.html
+md2cast tutorial.md --render-html --execute  # with real command output
 ```
 
 ## Execute Mode
