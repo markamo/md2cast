@@ -17,9 +17,11 @@ pip install asciinema
 # or: brew install asciinema      (macOS)
 
 # Install agg (optional, for GIF export)
-# Download binary from https://github.com/asciinema/agg/releases
-# or build from source:
-cargo install --git https://github.com/asciinema/agg
+# Download prebuilt binary from https://github.com/asciinema/agg/releases
+# or via package manager:
+# brew install agg                (macOS)
+# nix-env -i agg                 (Nix)
+# cargo install --git https://github.com/asciinema/agg  (from source)
 ```
 
 ## Install
