@@ -76,7 +76,7 @@ try:
 except ImportError:
     _HAS_PIL = False
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # ── Free tier limits ──────────────────────────────────────────────────────
 FREE_TIER = True

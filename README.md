@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/md2cast-v0.3.0-2997ff?style=for-the-badge&labelColor=000" alt="md2cast v0.3.0">
+  <img src="https://img.shields.io/badge/md2cast-v0.4.0-2997ff?style=for-the-badge&labelColor=000" alt="md2cast v0.3.0">
 </p>
 
 <h1 align="center">md2cast</h1>
@@ -35,7 +35,7 @@
 
 ---
 
-Write your tutorial in Markdown. Run one command. Get a `.cast` file you can play, embed, or share as a GIF.
+Write your tutorial in Markdown. Run one command. Get a `.cast` file you can play, embed, or convert to GIF, MP4, or WebM.
 
 ## Install
 
@@ -52,6 +52,8 @@ Installs `md2cast` with **Pygments** (syntax highlighting) and **asciinema** (pl
 | Tool | For | Install |
 |------|-----|---------|
 | [agg](https://github.com/asciinema/agg/releases) | GIF export (`--gif`) | Download binary from releases |
+| [ffmpeg](https://ffmpeg.org/) | MP4/WebM export (`--mp4`, `--webm`) | `apt install ffmpeg` |
+| [Pillow](https://pillow.readthedocs.io/) | Image stitching in GIFs | `pip install Pillow` |
 | [Playwright](https://playwright.dev/python/) | Browser capture (Pro) | `pip install playwright && playwright install chromium` |
 | [xdotool](https://github.com/jordansissel/xdotool) | GUI capture (Pro) | `apt install xdotool` |
 
@@ -85,6 +87,12 @@ md2cast tutorial.md --section 3
 # Custom terminal size
 md2cast tutorial.md --cols 120 --rows 40
 
+# Generate MP4 video (requires agg + ffmpeg)
+md2cast tutorial.md --mp4                  # → tutorial.mp4
+
+# Generate WebM video
+md2cast tutorial.md --webm                 # → tutorial.webm
+
 # Use a custom theme
 md2cast tutorial.md --theme my-theme.json
 ```
@@ -103,6 +111,9 @@ Standard Markdown maps directly to screencast visuals. No DSL to learn.
 | ` ``` ` (no lang) | Static output block |
 | ` ```yaml ` etc | Syntax-highlighted static block |
 | `> blockquote` | Highlighted note (yellow sidebar) |
+| `![alt](image.png)` | Narration in cast; embedded in HTML/Render; stitched into GIF |
+| `![alt](video.mp4)` | Narration in cast; `<video>` in HTML; frame in GIF |
+| `[text](url)` | Clickable link in HTML output |
 | `---` | Screen clear |
 
 ## Directives
@@ -138,8 +149,11 @@ apt install -y nginx
 | Feature | Free | Pro |
 |---------|:----:|:---:|
 | All markdown directives | ✅ | ✅ |
-| Cast, GIF, HTML, Render output | ✅ | ✅ |
+| Cast, GIF, MP4, WebM, HTML, Render output | ✅ | ✅ |
 | Execute mode (real output) | ✅ | ✅ |
+| Image & video embedding | ✅ | ✅ |
+| Image stitching into GIFs (Pillow) | ✅ | ✅ |
+| Customizable heading formats | ✅ | ✅ |
 | Custom themes & syntax highlighting | ✅ | ✅ |
 | Split mode & section select | ✅ | ✅ |
 | Auto-sized terminal rows | ✅ | ✅ |
@@ -190,6 +204,25 @@ md2cast --init-theme > md2cast.json
     "cmd_pause": 0.8,
     "output_pause": 1.5,
     "section_pause": 2.0
+  },
+  "headings": {
+    "h1": { "style": "box", "border": "double", "width": 60, "align": "left", "padding": 1, "clear": true },
+    "h2": { "style": "box", "border": "single", "width": "auto", "align": "center", "padding": 0, "clear": true },
+    "h3": { "style": "text", "clear": false, "prefix": "", "suffix": "", "align": "left" }
+  },
+  "render": {
+    "background": "#1a1b26",
+    "foreground": "#c0caf5",
+    "accent": "#7aa2f7",
+    "font_family": "Inter, system-ui, sans-serif",
+    "code_font": "JetBrains Mono, Fira Code, monospace",
+    "max_width": "900px",
+    "image_max_width": "100%",
+    "image_border_radius": "8px",
+    "image_shadow": true,
+    "video_autoplay": false,
+    "video_controls": true,
+    "video_loop": false
   }
 }
 ```
@@ -201,6 +234,10 @@ md2cast --init-theme > md2cast.json
 **Color formats:** Named (`"green"`, `"bold"`), hex (`"#ff6600"`), 256-color (`"256:208"`), raw SGR (`"1;38;5;214"`), or empty (`""` for default).
 
 **Syntax highlighting:** Powered by [Pygments](https://pygments.org/). Use any style — `monokai`, `dracula`, `solarized-dark`, `nord`, `one-dark`, etc.
+
+**Heading formats:** Control how `#`, `##`, `###` render in the cast. Styles: `box` (bordered), `line` (underline), `text` (plain bold), `none` (hidden). Border types for box style: `double` (╔═╗), `single` (┌─┐), `heavy` (┏━┓), `rounded` (╭─╮).
+
+**Render config:** Customize the `--render-html` output — colors, fonts, max width, image styling, and video player options.
 
 ## Render Modes
 
