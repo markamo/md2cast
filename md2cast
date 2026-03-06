@@ -68,6 +68,12 @@ import textwrap
 
 import time
 
+try:
+    from PIL import Image as _PILImage
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
+
 __version__ = "0.3.0"
 
 # ── Free tier limits ──────────────────────────────────────────────────────
@@ -650,6 +656,7 @@ class Renderer:
         self.t = theme
         self.execute = execute
         self.working_dir = working_dir
+        self.image_markers = []  # [(timestamp, image_path)] for GIF stitching
 
     def _render_heading_box(self, title, hcfg, color_border, color_text, subtitle=""):
         """Render a heading as a box with configurable border, width, alignment."""
@@ -778,7 +785,7 @@ class Renderer:
         self.cast.write_line("")
 
     def render_image(self, src, alt=""):
-        """Render an image reference as narration (terminal can't display images)."""
+        """Render an image reference. Records timestamp for GIF stitching."""
         t = self.t
         ext = os.path.splitext(src)[1].lower()
         if ext in (".mp4", ".webm", ".mov", ".avi"):
@@ -791,10 +798,13 @@ class Renderer:
             icon = "\U0001f4f7"  # 📷
             label = "Image"
         display = alt if alt else os.path.basename(src)
+
+        # Record position for GIF stitching (image inserted after this narration)
+        self.image_markers.append({"time": self.cast.time, "src": src, "alt": alt})
+
         self.cast.write_line("")
         self.cast.write_line(f"  {t.narration}{icon} {label}: {display}{t.nc}")
         self.cast.write_line(f"  {t.narration}   [{src}]{t.nc}")
-        self.cast.write_line(f"  {t.narration}   (use --render-html to display inline){t.nc}")
         self.cast.pause(1.5)
         self.cast.write_line("")
 
@@ -1255,6 +1265,135 @@ def cast_to_gif(cast_path):
               file=sys.stderr)
     except subprocess.TimeoutExpired:
         print("  Error: agg timed out", file=sys.stderr)
+
+
+def image_to_gif_frame(image_path, width=800, bg_color=(13, 17, 23)):
+    """Convert an image to a GIF-compatible frame, resized to fit terminal width.
+
+    Returns a PIL Image or None if Pillow not available / file not found.
+    """
+    if not _HAS_PIL:
+        return None
+    try:
+        img = _PILImage.open(image_path)
+    except (FileNotFoundError, OSError):
+        return None
+
+    # Handle animated GIFs — take first frame
+    if hasattr(img, 'n_frames') and img.n_frames > 1:
+        img.seek(0)
+    img = img.convert("RGBA")
+
+    # Resize to fit width, maintaining aspect ratio
+    ratio = width / img.width
+    new_h = int(img.height * ratio)
+    img = img.resize((width, new_h), _PILImage.LANCZOS)
+
+    # Place on dark background with padding
+    pad = 20
+    canvas = _PILImage.new("RGBA", (width, new_h + pad * 2), bg_color + (255,))
+    canvas.paste(img, (0, pad), img)
+    return canvas.convert("RGB")
+
+
+def stitch_gif_with_images(gif_path, image_insertions, duration_ms=2000):
+    """Insert image frames into an existing GIF at specific positions.
+
+    image_insertions: list of (position_index, PIL Image frame)
+    position_index: frame number after which to insert the image
+
+    Modifies the GIF in place.
+    """
+    if not _HAS_PIL or not image_insertions:
+        return
+
+    try:
+        base_gif = _PILImage.open(gif_path)
+    except (FileNotFoundError, OSError):
+        return
+
+    # Extract all frames from the base GIF
+    frames = []
+    durations = []
+    try:
+        while True:
+            frames.append(base_gif.copy().convert("RGB"))
+            durations.append(base_gif.info.get("duration", 100))
+            base_gif.seek(base_gif.tell() + 1)
+    except EOFError:
+        pass
+
+    if not frames:
+        return
+
+    # Get target size from first frame
+    target_size = frames[0].size
+
+    # Build insertion map: position → list of image frames
+    inserts = {}
+    for pos, img_frame in image_insertions:
+        pos = min(pos, len(frames))
+        if pos not in inserts:
+            inserts[pos] = []
+        # Resize image frame to match GIF dimensions
+        resized = img_frame.resize(target_size, _PILImage.LANCZOS)
+        inserts[pos].append(resized)
+
+    # Rebuild frames list with insertions
+    new_frames = []
+    new_durations = []
+    for i, (frame, dur) in enumerate(zip(frames, durations)):
+        new_frames.append(frame)
+        new_durations.append(dur)
+        if i in inserts:
+            for img_frame in inserts[i]:
+                new_frames.append(img_frame)
+                new_durations.append(duration_ms)
+
+    # Check for insertions at the end
+    if len(frames) in inserts:
+        for img_frame in inserts[len(frames)]:
+            new_frames.append(img_frame)
+            new_durations.append(duration_ms)
+
+    # Save
+    new_frames[0].save(
+        gif_path,
+        save_all=True,
+        append_images=new_frames[1:],
+        duration=new_durations,
+        loop=0,
+        optimize=False
+    )
+
+
+def _stitch_images_into_gif(gif_path, image_markers, working_dir=None):
+    """Stitch real images into a GIF at positions where image narration appears.
+
+    image_markers: list of {"time": float, "src": str, "alt": str}
+    """
+    ok = "\033[0;32m[OK]\033[0m"
+
+    # Load image frames
+    insertions = []
+    for marker in image_markers:
+        src = marker["src"]
+        # Resolve relative paths
+        if working_dir and not os.path.isabs(src):
+            src = os.path.join(working_dir, src)
+
+        frame = image_to_gif_frame(src)
+        if frame is None:
+            continue
+
+        # Estimate frame position from timestamp
+        # agg generates ~10 fps, so position ≈ time * 10
+        frame_pos = int(marker["time"] * 10)
+        insertions.append((frame_pos, frame))
+
+    if insertions:
+        stitch_gif_with_images(gif_path, insertions, duration_ms=2500)
+        print(f"  {ok} Stitched {len(insertions)} image(s) into {gif_path}")
 
 
 def _estimate_block_rows(code_content, lang, dirs, execute=False):
@@ -2097,6 +2236,13 @@ def main():
         print(f"  Play: asciinema play {outfile}")
         if args.gif:
             cast_to_gif(outfile)
+            # Stitch images into the GIF if any were recorded
+            if renderer.image_markers and _HAS_PIL:
+                gif_path = os.path.splitext(outfile)[0] + ".gif"
+                if os.path.exists(gif_path):
+                    wd = args.working_dir or os.path.dirname(os.path.abspath(args.input))
+                    _stitch_images_into_gif(gif_path, renderer.image_markers,
+                                            working_dir=wd)
         else:
             print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
         print()
