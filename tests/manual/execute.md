@@ -38,7 +38,9 @@ This one should NOT execute even with --execute:
 echo "This stays simulated"
 ```
 
-## Python Output
+## Python Code Display
+
+This block should render as static syntax-highlighted output (not executed):
 
 ```python
 import sys

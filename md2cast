@@ -1709,22 +1709,17 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
             escaped_code = _html_escape(code_content)
             lang_label = lang.upper() if lang else "OUTPUT"
             sections_html.append(f'''<div class="cast-block">
-  <div id="{player_id}" class="player"></div>
-  <details>
-    <summary>{lang_label} — click to copy</summary>
+  <div id="{player_id}" class="player" data-cast-src="{rel_cast}"
+       data-theme="{theme.player_theme or 'monokai'}"
+       data-font="{theme.font_family or 'monospace'}"
+       data-font-size="{theme.font_size or 16}"
+       data-idle="{theme.idle_time_limit or 3}"
+       data-cols="{theme.cols}"
+       data-rows="{_player_rows(code_lines, theme)}"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code class="language-{lang or 'text'}">{escaped_code}</code></pre>
-  </details>
-  <script>AsciinemaPlayer.create('{rel_cast}', document.getElementById('{player_id}'), {{
-    theme: '{theme.player_theme or "monokai"}',
-    fontFamily: '{theme.font_family or "monospace"}',
-    fontSize: '{theme.font_size or 16}px',
-    idleTimeLimit: {theme.idle_time_limit or 3},
-    cols: {theme.cols},
-    rows: {_player_rows(code_lines, theme)},
-    fit: 'width',
-    autoPlay: false,
-    preload: true
-  }});</script>
+  </div>
 </div>''')
 
         elif event[0] == "browser":
@@ -1880,13 +1875,59 @@ def _html_template(title, body, theme):
     font-size: 0.9rem;
     color: var(--fg);
   }}
+  .code-copy {{
+    position: relative;
+    margin-top: 0.5rem;
+  }}
+  .copy-btn {{
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--border);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 1;
+    transition: color 0.2s, background 0.2s;
+  }}
+  .copy-btn:hover {{ color: var(--fg); background: var(--code-bg); }}
+  .copy-btn.copied {{ color: #9ece6a; }}
   /* Asciinema player overrides */
   .ap-wrapper {{ border-radius: 8px !important; }}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
 </head>
 <body>
 {body}
-<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js"></script>
+<script>
+function copyCode(btn) {{
+  var code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {{
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {{ btn.textContent = 'Copy'; btn.classList.remove('copied'); }}, 2000);
+  }});
+}}
+document.addEventListener('DOMContentLoaded', function() {{
+  document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {{
+    AsciinemaPlayer.create(el.dataset.castSrc, el, {{
+      theme: el.dataset.theme,
+      fontFamily: el.dataset.font,
+      fontSize: el.dataset.fontSize + 'px',
+      idleTimeLimit: parseInt(el.dataset.idle),
+      cols: parseInt(el.dataset.cols),
+      rows: parseInt(el.dataset.rows),
+      fit: 'width',
+      autoPlay: false,
+      preload: true
+    }});
+  }});
+}});
+</script>
 <footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center;font-size:0.8rem;color:var(--muted);">
   Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
 </footer>
