@@ -1,0 +1,8 @@
+{"version": 2, "width": 72, "height": 12, "title": "JSON Example", "timestamp": 1772792718, "env": {"TERM": "xterm-256color", "THEME": "monokai", "FONT_FAMILY": "JetBrains Mono, Fira Code, Menlo, monospace", "FONT_SIZE": "16"}, "idle_time_limit": 3}
+[0.3, "o", "\u001b[38;5;15m{\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m  \u001b[39m\u001b[38;5;204m\"name\"\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;186m\"md2cast\"\u001b[39m\u001b[38;5;15m,\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m  \u001b[39m\u001b[38;5;204m\"version\"\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;186m\"0.3.0\"\u001b[39m\u001b[38;5;15m,\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m  \u001b[39m\u001b[38;5;204m\"features\"\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;15m[\u001b[39m\u001b[38;5;186m\"cast\"\u001b[39m\u001b[38;5;15m,\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;186m\"gif\"\u001b[39m\u001b[38;5;15m,\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;186m\"render\"\u001b[39m\u001b[38;5;15m,\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;186m\"html\"\u001b[39m\u001b[38;5;15m]\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m}\u001b[39m\r\n"]
+[1.8, "o", "\u001b[12;1H"]
+[1.8, "o", "\u001b[2m                                                                md2cast\u001b[0m"]

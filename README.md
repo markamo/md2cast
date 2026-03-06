@@ -22,6 +22,7 @@
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#markdown-mapping">How it Maps</a> &bull;
   <a href="#features">Features</a> &bull;
+  <a href="examples/">Examples</a> &bull;
   <a href="#pro">Pro</a> &bull;
   <a href="https://md2cast.dev">Website</a>
 </p>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basic Demo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+<style>
+  :root {
+    --bg: #1a1b26;
+    --fg: #c0caf5;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --border: #292e42;
+    --code-bg: #24283b;
+    --blockquote-border: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: JetBrains Mono, Fira Code, Menlo, monospace;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+  h1 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+    color: #c0caf5;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+  }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--fg); }
+  p { margin: 0.8rem 0; }
+  li { margin: 0.3rem 0 0.3rem 1.5rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--muted);
+    background: rgba(224, 175, 104, 0.05);
+    border-radius: 0 4px 4px 0;
+  }
+  .cast-block {
+    margin: 1.5rem 0;
+  }
+  .player {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  details {
+    margin-top: 0.5rem;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    user-select: none;
+  }
+  summary:hover { color: var(--accent); }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.9rem;
+    color: var(--fg);
+  }
+  .code-copy {
+    position: relative;
+    margin-top: 0.5rem;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--border);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+  .copy-btn:hover { color: var(--fg); background: var(--code-bg); }
+  .copy-btn.copied { color: #9ece6a; }
+  /* Asciinema player overrides */
+  .ap-wrapper { border-radius: 8px !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
+</head>
+<body>
+<h1>Basic Demo</h1>
+<p>A simple test of core features.</p>
+<h2>Hello World</h2>
+<p>Run a simple command:</p>
+<div class="cast-block">
+  <div id="player-1" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiSGVsbG8gV29ybGQiLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdClswLjMsICJvIiwgIlx1MDAxYlswbSJdClswLjMsICJvIiwgImUiXQpbMC4zMywgIm8iLCAiYyJdClswLjM2LCAibyIsICJoIl0KWzAuMzksICJvIiwgIm8iXQpbMC40MiwgIm8iLCAiICJdClswLjQ1LCAibyIsICJcIiJdClswLjQ4LCAibyIsICJIIl0KWzAuNTEsICJvIiwgImUiXQpbMC41NCwgIm8iLCAibCJdClswLjU3LCAibyIsICJsIl0KWzAuNiwgIm8iLCAibyJdClswLjYzLCAibyIsICIsIl0KWzAuNjYsICJvIiwgIiAiXQpbMC42OSwgIm8iLCAidyJdClswLjcyLCAibyIsICJvIl0KWzAuNzUsICJvIiwgInIiXQpbMC43OCwgIm8iLCAibCJdClswLjgxLCAibyIsICJkIl0KWzAuODQsICJvIiwgIiEiXQpbMC44NywgIm8iLCAiXCIiXQpbMC45LCAibyIsICJcdTAwMWJbMG0iXQpbMC45LCAibyIsICJcclx1MDAxYlswOzMybSQgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtZWNob1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIkhlbGxvLCB3b3JsZCFcIlx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMS43LCAibyIsICJcclxuIl0KWzMuMiwgIm8iLCAiXHUwMDFiWzg7MUgiXQpbMy4yLCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;Hello, world!&quot;</code></pre>
+  </div>
+</div>
+<blockquote><p>Tip: This should appear as a yellow-bordered note.</p></blockquote>
+<h2>File Listing</h2>
+<div class="cast-block">
+  <div id="player-2" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiRmlsZSBMaXN0aW5nIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJsIl0KWzAuMzMsICJvIiwgInMiXQpbMC4zNiwgIm8iLCAiICJdClswLjM5LCAibyIsICItIl0KWzAuNDIsICJvIiwgImwiXQpbMC40NSwgIm8iLCAiYSJdClswLjQ4LCAibyIsICIgIl0KWzAuNTEsICJvIiwgIi8iXQpbMC41NCwgIm8iLCAidCJdClswLjU3LCAibyIsICJtIl0KWzAuNiwgIm8iLCAicCJdClswLjYzLCAibyIsICJcdTAwMWJbMG0iXQpbMC42MywgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWxzXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtLWxhXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtL3RtcFx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMS40MywgIm8iLCAiXHJcbiJdClsyLjkzLCAibyIsICJcdTAwMWJbODsxSCJdClsyLjkzLCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">ls -la /tmp</code></pre>
+  </div>
+</div>
+<h2>Config Example</h2>
+<div class="cast-block">
+  <div id="player-3" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMiwgInRpdGxlIjogIkNvbmZpZyBFeGFtcGxlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MjA0bW5hbWVcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW1teS1hcHBcdTAwMWJbMzltXHJcbiJdClswLjMsICJvIiwgIlx1MDAxYlszODs1OzIwNG12ZXJzaW9uXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bTpcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNDFtMS4wXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsyMDRtc2V0dGluZ3NcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bWRlYnVnXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bTpcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNDFtdHJ1ZVx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bXBvcnRcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW0zMDAwXHUwMDFiWzM5bVxyXG4iXQpbMS44LCAibyIsICJcdTAwMWJbMTI7MUgiXQpbMS44LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="10"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-yaml">name: my-app
+version: 1.0
+settings:
+  debug: true
+  port: 3000</code></pre>
+  </div>
+</div>
+<h2>Multi-line Commands</h2>
+<div class="cast-block">
+  <div id="player-4" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMCwgInRpdGxlIjogIk11bHRpLWxpbmUgQ29tbWFuZHMiLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdClswLjMsICJvIiwgIlx1MDAxYlswbSJdClswLjMsICJvIiwgImUiXQpbMC4zMywgIm8iLCAiYyJdClswLjM2LCAibyIsICJoIl0KWzAuMzksICJvIiwgIm8iXQpbMC40MiwgIm8iLCAiICJdClswLjQ1LCAibyIsICJcIiJdClswLjQ4LCAibyIsICJsIl0KWzAuNTEsICJvIiwgImkiXQpbMC41NCwgIm8iLCAibiJdClswLjU3LCAibyIsICJlIl0KWzAuNiwgIm8iLCAiICJdClswLjYzLCAibyIsICJvIl0KWzAuNjYsICJvIiwgIm4iXQpbMC42OSwgIm8iLCAiZSJdClswLjcyLCAibyIsICJcIiJdClswLjc1LCAibyIsICJcdTAwMWJbMG0iXQpbMC43NSwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJsaW5lIG9uZVwiXHUwMDFiWzM5bVx1MDAxYlswbSJdClsxLjU1LCAibyIsICJcclxuIl0KWzMuMDUsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzMuMDUsICJvIiwgIlx1MDAxYlswbSJdClszLjA1LCAibyIsICJlIl0KWzMuMDgsICJvIiwgImMiXQpbMy4xMSwgIm8iLCAiaCJdClszLjE0LCAibyIsICJvIl0KWzMuMTcsICJvIiwgIiAiXQpbMy4yLCAibyIsICJcIiJdClszLjIzLCAibyIsICJsIl0KWzMuMjYsICJvIiwgImkiXQpbMy4yOSwgIm8iLCAibiJdClszLjMyLCAibyIsICJlIl0KWzMuMzUsICJvIiwgIiAiXQpbMy4zOCwgIm8iLCAidCJdClszLjQxLCAibyIsICJ3Il0KWzMuNDQsICJvIiwgIm8iXQpbMy40NywgIm8iLCAiXCIiXQpbMy41LCAibyIsICJcdTAwMWJbMG0iXQpbMy41LCAibyIsICJcclx1MDAxYlswOzMybSQgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtZWNob1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cImxpbmUgdHdvXCJcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzQuMywgIm8iLCAiXHJcbiJdCls1LjgsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzUuOCwgIm8iLCAiXHUwMDFiWzBtIl0KWzUuOCwgIm8iLCAiZSJdCls1LjgzLCAibyIsICJjIl0KWzUuODYsICJvIiwgImgiXQpbNS44OSwgIm8iLCAibyJdCls1LjkyLCAibyIsICIgIl0KWzUuOTUsICJvIiwgIlwiIl0KWzUuOTgsICJvIiwgImwiXQpbNi4wMSwgIm8iLCAiaSJdCls2LjA0LCAibyIsICJuIl0KWzYuMDcsICJvIiwgImUiXQpbNi4xLCAibyIsICIgIl0KWzYuMTMsICJvIiwgInQiXQpbNi4xNiwgIm8iLCAiaCJdCls2LjE5LCAibyIsICJyIl0KWzYuMjIsICJvIiwgImUiXQpbNi4yNSwgIm8iLCAiZSJdCls2LjI4LCAibyIsICJcIiJdCls2LjMxLCAibyIsICJcdTAwMWJbMG0iXQpbNi4zMSwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJsaW5lIHRocmVlXCJcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzcuMTEsICJvIiwgIlxyXG4iXQpbOC42MSwgIm8iLCAiXHUwMDFiWzEwOzFIIl0KWzguNjEsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="8"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;line one&quot;
+echo &quot;line two&quot;
+echo &quot;line three&quot;</code></pre>
+  </div>
+</div>
+<hr>
+<h2>Final Section</h2>
+<div class="cast-block">
+  <div id="player-5" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiRmluYWwgU2VjdGlvbiIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiZSJdClswLjMzLCAibyIsICJjIl0KWzAuMzYsICJvIiwgImgiXQpbMC4zOSwgIm8iLCAibyJdClswLjQyLCAibyIsICIgIl0KWzAuNDUsICJvIiwgIlwiIl0KWzAuNDgsICJvIiwgIkEiXQpbMC41MSwgIm8iLCAibCJdClswLjU0LCAibyIsICJsIl0KWzAuNTcsICJvIiwgIiAiXQpbMC42LCAibyIsICJkIl0KWzAuNjMsICJvIiwgIm8iXQpbMC42NiwgIm8iLCAibiJdClswLjY5LCAibyIsICJlIl0KWzAuNzIsICJvIiwgIiEiXQpbMC43NSwgIm8iLCAiXCIiXQpbMC43OCwgIm8iLCAiXHUwMDFiWzBtIl0KWzAuNzgsICJvIiwgIlxyXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG1cdTAwMWJbMzg7NTsxNW1lY2hvXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiQWxsIGRvbmUhXCJcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzEuNTgsICJvIiwgIlxyXG4iXQpbMy4wOCwgIm8iLCAiXHUwMDFiWzg7MUgiXQpbMy4wOCwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;All done!&quot;</code></pre>
+  </div>
+</div>
+<script>
+function copyCode(btn) {
+  var code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {
+    AsciinemaPlayer.create(el.dataset.castSrc, el, {
+      theme: el.dataset.theme,
+      fontFamily: el.dataset.font,
+      fontSize: el.dataset.fontSize + 'px',
+      idleTimeLimit: parseInt(el.dataset.idle),
+      cols: parseInt(el.dataset.cols),
+      rows: parseInt(el.dataset.rows),
+      fit: 'width',
+      autoPlay: false,
+      preload: true
+    });
+  });
+});
+</script>
+<footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
+  Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
+</footer>
+</body>
+</html>

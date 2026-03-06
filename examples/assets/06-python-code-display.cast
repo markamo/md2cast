@@ -1,0 +1,7 @@
+{"version": 2, "width": 72, "height": 11, "title": "Python Code Display", "timestamp": 1772792718, "env": {"TERM": "xterm-256color", "THEME": "monokai", "FONT_FAMILY": "JetBrains Mono, Fira Code, Menlo, monospace", "FONT_SIZE": "16"}, "idle_time_limit": 3}
+[0.3, "o", "\u001b[38;5;204mimport\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;15msys\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15mprint\u001b[39m\u001b[38;5;15m(\u001b[39m\u001b[38;5;186mf\u001b[39m\u001b[38;5;186m\"\u001b[39m\u001b[38;5;186mPython \u001b[39m\u001b[38;5;186m{\u001b[39m\u001b[38;5;15msys\u001b[39m\u001b[38;5;204m.\u001b[39m\u001b[38;5;15mversion\u001b[39m\u001b[38;5;186m}\u001b[39m\u001b[38;5;186m\"\u001b[39m\u001b[38;5;15m)\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;81mfor\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;15mi\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;204min\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;15mrange\u001b[39m\u001b[38;5;15m(\u001b[39m\u001b[38;5;141m3\u001b[39m\u001b[38;5;15m)\u001b[39m\u001b[38;5;15m:\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m    \u001b[39m\u001b[38;5;15mprint\u001b[39m\u001b[38;5;15m(\u001b[39m\u001b[38;5;186mf\u001b[39m\u001b[38;5;186m\"\u001b[39m\u001b[38;5;186m  item \u001b[39m\u001b[38;5;186m{\u001b[39m\u001b[38;5;15mi\u001b[39m\u001b[38;5;186m}\u001b[39m\u001b[38;5;186m\"\u001b[39m\u001b[38;5;15m)\u001b[39m\r\n"]
+[1.8, "o", "\u001b[11;1H"]
+[1.8, "o", "\u001b[2m                                                                md2cast\u001b[0m"]

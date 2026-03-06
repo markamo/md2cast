@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Execute Mode Test</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+<style>
+  :root {
+    --bg: #1a1b26;
+    --fg: #c0caf5;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --border: #292e42;
+    --code-bg: #24283b;
+    --blockquote-border: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: JetBrains Mono, Fira Code, Menlo, monospace;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+  h1 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+    color: #c0caf5;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+  }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--fg); }
+  p { margin: 0.8rem 0; }
+  li { margin: 0.3rem 0 0.3rem 1.5rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--muted);
+    background: rgba(224, 175, 104, 0.05);
+    border-radius: 0 4px 4px 0;
+  }
+  .cast-block {
+    margin: 1.5rem 0;
+  }
+  .player {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  details {
+    margin-top: 0.5rem;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    user-select: none;
+  }
+  summary:hover { color: var(--accent); }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.9rem;
+    color: var(--fg);
+  }
+  .code-copy {
+    position: relative;
+    margin-top: 0.5rem;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--border);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+  .copy-btn:hover { color: var(--fg); background: var(--code-bg); }
+  .copy-btn.copied { color: #9ece6a; }
+  /* Asciinema player overrides */
+  .ap-wrapper { border-radius: 8px !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
+</head>
+<body>
+<h1>Execute Mode Test</h1>
+<p>Run with: md2cast tests/manual/execute.md --execute -o /tmp/execute-test.cast</p>
+<h2>System Info</h2>
+<div class="cast-block">
+  <div id="player-1" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMCwgInRpdGxlIjogIlN5c3RlbSBJbmZvIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJ1Il0KWzAuMzMsICJvIiwgIm4iXQpbMC4zNiwgIm8iLCAiYSJdClswLjM5LCAibyIsICJtIl0KWzAuNDIsICJvIiwgImUiXQpbMC40NSwgIm8iLCAiICJdClswLjQ4LCAibyIsICItIl0KWzAuNTEsICJvIiwgImEiXQpbMC41NCwgIm8iLCAiXHUwMDFiWzBtIl0KWzAuNTQsICJvIiwgIlxyXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG1cdTAwMWJbMzg7NTsxNW11bmFtZVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bS1hXHUwMDFiWzM5bVx1MDAxYlswbSJdClsxLjM0LCAibyIsICJcclxuIl0KWzEuMzQsICJvIiwgIlx1MDAxYlswbUxpbnV4IG15bWFyay13a3MgNi4xNy4wLTE0LWdlbmVyaWMgIzE0fjI0LjA0LjEtVWJ1bnR1IFNNUCBQUkVFTVBUX0RZTkFNSUMgVGh1IEphbiAxNSAxNTo1MjoxMCBVVEMgMiB4ODZfNjQgeDg2XzY0IHg4Nl82NCBHTlUvTGludXhcdTAwMWJbMG1cclxuIl0KWzIuODQsICJvIiwgIlx1MDAxYlsxMDsxSCJdClsyLjg0LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">uname -a</code></pre>
+  </div>
+</div>
+<div class="cast-block">
+  <div id="player-2" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMCwgInRpdGxlIjogIlN5c3RlbSBJbmZvIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJ3Il0KWzAuMzMsICJvIiwgImgiXQpbMC4zNiwgIm8iLCAibyJdClswLjM5LCAibyIsICJhIl0KWzAuNDIsICJvIiwgIm0iXQpbMC40NSwgIm8iLCAiaSJdClswLjQ4LCAibyIsICJcdTAwMWJbMG0iXQpbMC40OCwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bXdob2FtaVx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMS4yOCwgIm8iLCAiXHJcbiJdClsxLjI4LCAibyIsICJcdTAwMWJbMG1teW1hcmtcdTAwMWJbMG1cclxuIl0KWzIuNzgsICJvIiwgIlx1MDAxYlsxMDsxSCJdClsyLjc4LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">whoami</code></pre>
+  </div>
+</div>
+<h2>Working with Files</h2>
+<div class="cast-block">
+  <div id="player-3" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxNiwgInRpdGxlIjogIldvcmtpbmcgd2l0aCBGaWxlcyIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiZSJdClswLjMzLCAibyIsICJjIl0KWzAuMzYsICJvIiwgImgiXQpbMC4zOSwgIm8iLCAibyJdClswLjQyLCAibyIsICIgIl0KWzAuNDUsICJvIiwgIlwiIl0KWzAuNDgsICJvIiwgImgiXQpbMC41MSwgIm8iLCAiZSJdClswLjU0LCAibyIsICJsIl0KWzAuNTcsICJvIiwgImwiXQpbMC42LCAibyIsICJvIl0KWzAuNjMsICJvIiwgIiAiXQpbMC42NiwgIm8iLCAiZiJdClswLjY5LCAibyIsICJyIl0KWzAuNzIsICJvIiwgIm8iXQpbMC43NSwgIm8iLCAibSJdClswLjc4LCAibyIsICIgIl0KWzAuODEsICJvIiwgIm0iXQpbMC44NCwgIm8iLCAiZCJdClswLjg3LCAibyIsICIyIl0KWzAuOSwgIm8iLCAiYyJdClswLjkzLCAibyIsICJhIl0KWzAuOTYsICJvIiwgInMiXQpbMC45OSwgIm8iLCAidCJdClsxLjAyLCAibyIsICJcIiJdClsxLjA1LCAibyIsICIgIl0KWzEuMDgsICJvIiwgIj4iXQpbMS4xMSwgIm8iLCAiICJdClsxLjE0LCAibyIsICIvIl0KWzEuMTcsICJvIiwgInQiXQpbMS4yLCAibyIsICJtIl0KWzEuMjMsICJvIiwgInAiXQpbMS4yNiwgIm8iLCAiLyJdClsxLjI5LCAibyIsICJtIl0KWzEuMzIsICJvIiwgImQiXQpbMS4zNSwgIm8iLCAiMiJdClsxLjM4LCAibyIsICJjIl0KWzEuNDEsICJvIiwgImEiXQpbMS40NCwgIm8iLCAicyJdClsxLjQ3LCAibyIsICJ0Il0KWzEuNSwgIm8iLCAiLSJdClsxLjUzLCAibyIsICJ0Il0KWzEuNTYsICJvIiwgImUiXQpbMS41OSwgIm8iLCAicyJdClsxLjYyLCAibyIsICJ0Il0KWzEuNjUsICJvIiwgIi4iXQpbMS42OCwgIm8iLCAidCJdClsxLjcxLCAibyIsICJ4Il0KWzEuNzQsICJvIiwgInQiXQpbMS43NywgIm8iLCAiXHUwMDFiWzBtIl0KWzEuNzcsICJvIiwgIlxyXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG1cdTAwMWJbMzg7NTsxNW1lY2hvXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiaGVsbG8gZnJvbSBtZDJjYXN0XCJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0+XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtL3RtcC9tZDJjYXN0LXRlc3QudHh0XHUwMDFiWzM5bVx1MDAxYlswbSJdClsyLjU3LCAibyIsICJcclxuIl0KWzQuMDcsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzQuMDcsICJvIiwgIlx1MDAxYlswbSJdCls0LjA3LCAibyIsICJjIl0KWzQuMSwgIm8iLCAiYSJdCls0LjEzLCAibyIsICJ0Il0KWzQuMTYsICJvIiwgIiAiXQpbNC4xOSwgIm8iLCAiLyJdCls0LjIyLCAibyIsICJ0Il0KWzQuMjUsICJvIiwgIm0iXQpbNC4yOCwgIm8iLCAicCJdCls0LjMxLCAibyIsICIvIl0KWzQuMzQsICJvIiwgIm0iXQpbNC4zNywgIm8iLCAiZCJdCls0LjQsICJvIiwgIjIiXQpbNC40MywgIm8iLCAiYyJdCls0LjQ2LCAibyIsICJhIl0KWzQuNDksICJvIiwgInMiXQpbNC41MiwgIm8iLCAidCJdCls0LjU1LCAibyIsICItIl0KWzQuNTgsICJvIiwgInQiXQpbNC42MSwgIm8iLCAiZSJdCls0LjY0LCAibyIsICJzIl0KWzQuNjcsICJvIiwgInQiXQpbNC43LCAibyIsICIuIl0KWzQuNzMsICJvIiwgInQiXQpbNC43NiwgIm8iLCAieCJdCls0Ljc5LCAibyIsICJ0Il0KWzQuODIsICJvIiwgIlx1MDAxYlswbSJdCls0LjgyLCAibyIsICJcclx1MDAxYlswOzMybSQgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtY2F0XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtL3RtcC9tZDJjYXN0LXRlc3QudHh0XHUwMDFiWzM5bVx1MDAxYlswbSJdCls1LjYyLCAibyIsICJcclxuIl0KWzUuNjIsICJvIiwgIlx1MDAxYlswbWhlbGxvIGZyb20gbWQyY2FzdFx1MDAxYlswbVxyXG4iXQpbNy4xMiwgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbNy4xMiwgIm8iLCAiXHUwMDFiWzBtIl0KWzcuMTIsICJvIiwgInIiXQpbNy4xNSwgIm8iLCAibSJdCls3LjE4LCAibyIsICIgIl0KWzcuMjEsICJvIiwgIi8iXQpbNy4yNCwgIm8iLCAidCJdCls3LjI3LCAibyIsICJtIl0KWzcuMywgIm8iLCAicCJdCls3LjMzLCAibyIsICIvIl0KWzcuMzYsICJvIiwgIm0iXQpbNy4zOSwgIm8iLCAiZCJdCls3LjQyLCAibyIsICIyIl0KWzcuNDUsICJvIiwgImMiXQpbNy40OCwgIm8iLCAiYSJdCls3LjUxLCAibyIsICJzIl0KWzcuNTQsICJvIiwgInQiXQpbNy41NywgIm8iLCAiLSJdCls3LjYsICJvIiwgInQiXQpbNy42MywgIm8iLCAiZSJdCls3LjY2LCAibyIsICJzIl0KWzcuNjksICJvIiwgInQiXQpbNy43MiwgIm8iLCAiLiJdCls3Ljc1LCAibyIsICJ0Il0KWzcuNzgsICJvIiwgIngiXQpbNy44MSwgIm8iLCAidCJdCls3Ljg0LCAibyIsICJcdTAwMWJbMG0iXQpbNy44NCwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bXJtXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtL3RtcC9tZDJjYXN0LXRlc3QudHh0XHUwMDFiWzM5bVx1MDAxYlswbSJdCls4LjY0LCAibyIsICJcclxuIl0KWzEwLjE0LCAibyIsICJcdTAwMWJbMTY7MUgiXQpbMTAuMTQsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="8"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;hello from md2cast&quot; &gt; /tmp/md2cast-test.txt
+cat /tmp/md2cast-test.txt
+rm /tmp/md2cast-test.txt</code></pre>
+  </div>
+</div>
+<h2>View-Exec Mode</h2>
+<div class="cast-block">
+  <div id="player-4" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxNiwgInRpdGxlIjogIlZpZXctRXhlYyBNb2RlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHJcbiJdClswLjMsICJvIiwgIiAgXHUwMDFiWzJtIyBDb21tYW5kcyB0byBydW46XHUwMDFiWzBtXHJcbiJdClswLjMsICJvIiwgIiAgXHUwMDFiWzA7MzZtXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUyNTAwXHUwMDFiWzBtXHJcbiJdClswLjMsICJvIiwgIiAgXHUwMDFiWzJtICBlY2hvIFwiU3RlcCAxOiBDaGVjayBkaXJlY3RvcnlcIlx1MDAxYlswbVxyXG4iXQpbMC4zLCAibyIsICIgIFx1MDAxYlsybSAgbHMgL3RtcCB8IGhlYWQgLTVcdTAwMWJbMG1cclxuIl0KWzAuMywgIm8iLCAiICBcdTAwMWJbMm0gIGVjaG8gXCJTdGVwIDM6IERvbmVcIlx1MDAxYlswbVxyXG4iXQpbMC4zLCAibyIsICIgIFx1MDAxYlswOzM2bVx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MjUwMFx1MDAxYlswbVxyXG4iXQpbMi4zLCAibyIsICJcclxuIl0KWzIuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMi4zLCAibyIsICJcdTAwMWJbMG0iXQpbMi4zLCAibyIsICJlIl0KWzIuMzMsICJvIiwgImMiXQpbMi4zNiwgIm8iLCAiaCJdClsyLjM5LCAibyIsICJvIl0KWzIuNDIsICJvIiwgIiAiXQpbMi40NSwgIm8iLCAiXCIiXQpbMi40OCwgIm8iLCAiUyJdClsyLjUxLCAibyIsICJ0Il0KWzIuNTQsICJvIiwgImUiXQpbMi41NywgIm8iLCAicCJdClsyLjYsICJvIiwgIiAiXQpbMi42MywgIm8iLCAiMSJdClsyLjY2LCAibyIsICI6Il0KWzIuNjksICJvIiwgIiAiXQpbMi43MiwgIm8iLCAiQyJdClsyLjc1LCAibyIsICJoIl0KWzIuNzgsICJvIiwgImUiXQpbMi44MSwgIm8iLCAiYyJdClsyLjg0LCAibyIsICJrIl0KWzIuODcsICJvIiwgIiAiXQpbMi45LCAibyIsICJkIl0KWzIuOTMsICJvIiwgImkiXQpbMi45NiwgIm8iLCAiciJdClsyLjk5LCAibyIsICJlIl0KWzMuMDIsICJvIiwgImMiXQpbMy4wNSwgIm8iLCAidCJdClszLjA4LCAibyIsICJvIl0KWzMuMTEsICJvIiwgInIiXQpbMy4xNCwgIm8iLCAieSJdClszLjE3LCAibyIsICJcIiJdClszLjIsICJvIiwgIlx1MDAxYlswbSJdCls0LjAsICJvIiwgIlxyXG4iXQpbNC4wLCAibyIsICJcdTAwMWJbMG1TdGVwIDE6IENoZWNrIGRpcmVjdG9yeVx1MDAxYlswbVxyXG4iXQpbNS41LCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdCls1LjUsICJvIiwgIlx1MDAxYlswbSJdCls1LjUsICJvIiwgImwiXQpbNS41MywgIm8iLCAicyJdCls1LjU2LCAibyIsICIgIl0KWzUuNTksICJvIiwgIi8iXQpbNS42MiwgIm8iLCAidCJdCls1LjY1LCAibyIsICJtIl0KWzUuNjgsICJvIiwgInAiXQpbNS43MSwgIm8iLCAiICJdCls1Ljc0LCAibyIsICJ8Il0KWzUuNzcsICJvIiwgIiAiXQpbNS44LCAibyIsICJoIl0KWzUuODMsICJvIiwgImUiXQpbNS44NiwgIm8iLCAiYSJdCls1Ljg5LCAibyIsICJkIl0KWzUuOTIsICJvIiwgIiAiXQpbNS45NSwgIm8iLCAiLSJdCls1Ljk4LCAibyIsICI1Il0KWzYuMDEsICJvIiwgIlx1MDAxYlswbSJdCls2LjgxLCAibyIsICJcclxuIl0KWzYuODEsICJvIiwgIlx1MDAxYlswbWFncGwzLnR4dFx1MDAxYlswbVxyXG4iXQpbNi44MSwgIm8iLCAiXHUwMDFiWzBtYWlkZXItdGVzdC5zaFx1MDAxYlswbVxyXG4iXQpbNi44MSwgIm8iLCAiXHUwMDFiWzBtYXNzZXRzXHUwMDFiWzBtXHJcbiJdCls2LjgxLCAibyIsICJcdTAwMWJbMG1hdXRvc2l6ZS10ZXN0Lm1kXHUwMDFiWzBtXHJcbiJdCls2LjgxLCAibyIsICJcdTAwMWJbMG1iYXNpYy5jYXN0XHUwMDFiWzBtXHJcbiJdCls4LjMxLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdCls4LjMxLCAibyIsICJcdTAwMWJbMG0iXQpbOC4zMSwgIm8iLCAiZSJdCls4LjM0LCAibyIsICJjIl0KWzguMzcsICJvIiwgImgiXQpbOC40LCAibyIsICJvIl0KWzguNDMsICJvIiwgIiAiXQpbOC40NiwgIm8iLCAiXCIiXQpbOC40OSwgIm8iLCAiUyJdCls4LjUyLCAibyIsICJ0Il0KWzguNTUsICJvIiwgImUiXQpbOC41OCwgIm8iLCAicCJdCls4LjYxLCAibyIsICIgIl0KWzguNjQsICJvIiwgIjMiXQpbOC42NywgIm8iLCAiOiJdCls4LjcsICJvIiwgIiAiXQpbOC43MywgIm8iLCAiRCJdCls4Ljc2LCAibyIsICJvIl0KWzguNzksICJvIiwgIm4iXQpbOC44MiwgIm8iLCAiZSJdCls4Ljg1LCAibyIsICJcIiJdCls4Ljg4LCAibyIsICJcdTAwMWJbMG0iXQpbOS42OCwgIm8iLCAiXHJcbiJdCls5LjY4LCAibyIsICJcdTAwMWJbMG1TdGVwIDM6IERvbmVcdTAwMWJbMG1cclxuIl0KWzExLjE4LCAibyIsICJcdTAwMWJbMTY7MUgiXQpbMTEuMTgsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="8"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;Step 1: Check directory&quot;
+ls /tmp | head -5
+echo &quot;Step 3: Done&quot;</code></pre>
+  </div>
+</div>
+<h2>Mixed: No-Exec Override</h2>
+<p>This one should NOT execute even with --execute:</p>
+<div class="cast-block">
+  <div id="player-5" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMCwgInRpdGxlIjogIk1peGVkOiBOby1FeGVjIE92ZXJyaWRlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJlIl0KWzAuMzMsICJvIiwgImMiXQpbMC4zNiwgIm8iLCAiaCJdClswLjM5LCAibyIsICJvIl0KWzAuNDIsICJvIiwgIiAiXQpbMC40NSwgIm8iLCAiXCIiXQpbMC40OCwgIm8iLCAiVCJdClswLjUxLCAibyIsICJoIl0KWzAuNTQsICJvIiwgImkiXQpbMC41NywgIm8iLCAicyJdClswLjYsICJvIiwgIiAiXQpbMC42MywgIm8iLCAicyJdClswLjY2LCAibyIsICJ0Il0KWzAuNjksICJvIiwgImEiXQpbMC43MiwgIm8iLCAieSJdClswLjc1LCAibyIsICJzIl0KWzAuNzgsICJvIiwgIiAiXQpbMC44MSwgIm8iLCAicyJdClswLjg0LCAibyIsICJpIl0KWzAuODcsICJvIiwgIm0iXQpbMC45LCAibyIsICJ1Il0KWzAuOTMsICJvIiwgImwiXQpbMC45NiwgIm8iLCAiYSJdClswLjk5LCAibyIsICJ0Il0KWzEuMDIsICJvIiwgImUiXQpbMS4wNSwgIm8iLCAiZCJdClsxLjA4LCAibyIsICJcIiJdClsxLjExLCAibyIsICJcdTAwMWJbMG0iXQpbMS4xMSwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJUaGlzIHN0YXlzIHNpbXVsYXRlZFwiXHUwMDFiWzM5bVx1MDAxYlswbSJdClsxLjkxLCAibyIsICJcclxuIl0KWzMuNDEsICJvIiwgIlx1MDAxYlsxMDsxSCJdClszLjQxLCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;This stays simulated&quot;</code></pre>
+  </div>
+</div>
+<h2>Python Code Display</h2>
+<p>This block should render as static syntax-highlighted output (not executed):</p>
+<div class="cast-block">
+  <div id="player-6" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMSwgInRpdGxlIjogIlB5dGhvbiBDb2RlIERpc3BsYXkiLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsyMDRtaW1wb3J0XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtc3lzXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsxNW1wcmludFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0oXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1mXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtUHl0aG9uIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZte1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1zeXNcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bS5cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtdmVyc2lvblx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtfVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtKVx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7ODFtZm9yXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtaVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzIwNG1pblx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bXJhbmdlXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bShcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTQxbTNcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtKVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW06XHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsxNW0gICAgXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bXByaW50XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bShcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bWZcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm0gIGl0ZW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm17XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bWlcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bX1cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSlcdTAwMWJbMzltXHJcbiJdClsxLjgsICJvIiwgIlx1MDAxYlsxMTsxSCJdClsxLjgsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="9"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-python">import sys
+print(f&quot;Python {sys.version}&quot;)
+for i in range(3):
+    print(f&quot;  item {i}&quot;)</code></pre>
+  </div>
+</div>
+<script>
+function copyCode(btn) {
+  var code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {
+    AsciinemaPlayer.create(el.dataset.castSrc, el, {
+      theme: el.dataset.theme,
+      fontFamily: el.dataset.font,
+      fontSize: el.dataset.fontSize + 'px',
+      idleTimeLimit: parseInt(el.dataset.idle),
+      cols: parseInt(el.dataset.cols),
+      rows: parseInt(el.dataset.rows),
+      fit: 'width',
+      autoPlay: false,
+      preload: true
+    });
+  });
+});
+</script>
+<footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
+  Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
+</footer>
+</body>
+</html>

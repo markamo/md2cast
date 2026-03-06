@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Directives Test</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+<style>
+  :root {
+    --bg: #1a1b26;
+    --fg: #c0caf5;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --border: #292e42;
+    --code-bg: #24283b;
+    --blockquote-border: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: JetBrains Mono, Fira Code, Menlo, monospace;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+  h1 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+    color: #c0caf5;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+  }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--fg); }
+  p { margin: 0.8rem 0; }
+  li { margin: 0.3rem 0 0.3rem 1.5rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--muted);
+    background: rgba(224, 175, 104, 0.05);
+    border-radius: 0 4px 4px 0;
+  }
+  .cast-block {
+    margin: 1.5rem 0;
+  }
+  .player {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  details {
+    margin-top: 0.5rem;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    user-select: none;
+  }
+  summary:hover { color: var(--accent); }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.9rem;
+    color: var(--fg);
+  }
+  .code-copy {
+    position: relative;
+    margin-top: 0.5rem;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--border);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+  .copy-btn:hover { color: var(--fg); background: var(--code-bg); }
+  .copy-btn.copied { color: #9ece6a; }
+  /* Asciinema player overrides */
+  .ap-wrapper { border-radius: 8px !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
+</head>
+<body>
+<h1>Directives Test</h1>
+<h2>Custom Prompt</h2>
+<div class="cast-block">
+  <div id="player-1" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiQ3VzdG9tIFByb21wdCIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlswOzMybSMgXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiYSJdClswLjMzLCAibyIsICJwIl0KWzAuMzYsICJvIiwgInQiXQpbMC4zOSwgIm8iLCAiICJdClswLjQyLCAibyIsICJpIl0KWzAuNDUsICJvIiwgIm4iXQpbMC40OCwgIm8iLCAicyJdClswLjUxLCAibyIsICJ0Il0KWzAuNTQsICJvIiwgImEiXQpbMC41NywgIm8iLCAibCJdClswLjYsICJvIiwgImwiXQpbMC42MywgIm8iLCAiICJdClswLjY2LCAibyIsICItIl0KWzAuNjksICJvIiwgInkiXQpbMC43MiwgIm8iLCAiICJdClswLjc1LCAibyIsICJuIl0KWzAuNzgsICJvIiwgImciXQpbMC44MSwgIm8iLCAiaSJdClswLjg0LCAibyIsICJuIl0KWzAuODcsICJvIiwgIngiXQpbMC45LCAibyIsICJcdTAwMWJbMG0iXQpbMC45LCAibyIsICJcclx1MDAxYlswOzMybSMgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtYXB0XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtaW5zdGFsbFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bS15XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtbmdpbnhcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzEuNywgIm8iLCAiXHJcbiJdClszLjIsICJvIiwgIlx1MDAxYls4OzFIIl0KWzMuMiwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">apt install -y nginx</code></pre>
+  </div>
+</div>
+<h2>Slow Typing</h2>
+<div class="cast-block">
+  <div id="player-2" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiU2xvdyBUeXBpbmciLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdClswLjMsICJvIiwgIlx1MDAxYlswbSJdClswLjMsICJvIiwgImUiXQpbMC4zOCwgIm8iLCAiYyJdClswLjQ2LCAibyIsICJoIl0KWzAuNTQsICJvIiwgIm8iXQpbMC42MiwgIm8iLCAiICJdClswLjcsICJvIiwgIlwiIl0KWzAuNzgsICJvIiwgIlQiXQpbMC44NiwgIm8iLCAiaCJdClswLjk0LCAibyIsICJpIl0KWzEuMDIsICJvIiwgInMiXQpbMS4xLCAibyIsICIgIl0KWzEuMTgsICJvIiwgInMiXQpbMS4yNiwgIm8iLCAiaCJdClsxLjM0LCAibyIsICJvIl0KWzEuNDIsICJvIiwgInUiXQpbMS41LCAibyIsICJsIl0KWzEuNTgsICJvIiwgImQiXQpbMS42NiwgIm8iLCAiICJdClsxLjc0LCAibyIsICJ0Il0KWzEuODIsICJvIiwgInkiXQpbMS45LCAibyIsICJwIl0KWzEuOTgsICJvIiwgImUiXQpbMi4wNiwgIm8iLCAiICJdClsyLjE0LCAibyIsICJzIl0KWzIuMjIsICJvIiwgImwiXQpbMi4zLCAibyIsICJvIl0KWzIuMzgsICJvIiwgInciXQpbMi40NiwgIm8iLCAibCJdClsyLjU0LCAibyIsICJ5Il0KWzIuNjIsICJvIiwgIlwiIl0KWzIuNywgIm8iLCAiXHUwMDFiWzBtIl0KWzIuNywgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJUaGlzIHNob3VsZCB0eXBlIHNsb3dseVwiXHUwMDFiWzM5bVx1MDAxYlswbSJdClszLjUsICJvIiwgIlxyXG4iXQpbNS4wLCAibyIsICJcdTAwMWJbODsxSCJdCls1LjAsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;This should type slowly&quot;</code></pre>
+  </div>
+</div>
+<h2>Fast Typing</h2>
+<div class="cast-block">
+  <div id="player-3" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiRmFzdCBUeXBpbmciLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdClswLjMsICJvIiwgIlx1MDAxYlswbSJdClswLjMsICJvIiwgImUiXQpbMC4zMDUsICJvIiwgImMiXQpbMC4zMSwgIm8iLCAiaCJdClswLjMxNSwgIm8iLCAibyJdClswLjMyLCAibyIsICIgIl0KWzAuMzI1LCAibyIsICJcIiJdClswLjMzLCAibyIsICJUIl0KWzAuMzM1LCAibyIsICJoIl0KWzAuMzQsICJvIiwgImkiXQpbMC4zNDUsICJvIiwgInMiXQpbMC4zNSwgIm8iLCAiICJdClswLjM1NSwgIm8iLCAicyJdClswLjM2LCAibyIsICJoIl0KWzAuMzY1LCAibyIsICJvIl0KWzAuMzcsICJvIiwgInUiXQpbMC4zNzUsICJvIiwgImwiXQpbMC4zOCwgIm8iLCAiZCJdClswLjM4NSwgIm8iLCAiICJdClswLjM5LCAibyIsICJ0Il0KWzAuMzk1LCAibyIsICJ5Il0KWzAuNCwgIm8iLCAicCJdClswLjQwNSwgIm8iLCAiZSJdClswLjQxLCAibyIsICIgIl0KWzAuNDE1LCAibyIsICJ2Il0KWzAuNDIsICJvIiwgImUiXQpbMC40MjUsICJvIiwgInIiXQpbMC40MywgIm8iLCAieSJdClswLjQzNSwgIm8iLCAiICJdClswLjQ0LCAibyIsICJmIl0KWzAuNDQ1LCAibyIsICJhIl0KWzAuNDUsICJvIiwgInMiXQpbMC40NTUsICJvIiwgInQiXQpbMC40NiwgIm8iLCAiXCIiXQpbMC40NjUsICJvIiwgIlx1MDAxYlswbSJdClswLjQ2NSwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJUaGlzIHNob3VsZCB0eXBlIHZlcnkgZmFzdFwiXHUwMDFiWzM5bVx1MDAxYlswbSJdClsxLjI2NSwgIm8iLCAiXHJcbiJdClsyLjc2NSwgIm8iLCAiXHUwMDFiWzg7MUgiXQpbMi43NjUsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;This should type very fast&quot;</code></pre>
+  </div>
+</div>
+<h2>Output Override</h2>
+<p>This bash block should display as static output, not typed:</p>
+<div class="cast-block">
+  <div id="player-4" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiT3V0cHV0IE92ZXJyaWRlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtZWNob1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIlRoaXMgaXMgc2hvd24gYXMgb3V0cHV0LCBub3QgdHlwZWRcIlx1MDAxYlszOW1cclxuIl0KWzEuOCwgIm8iLCAiXHUwMDFiWzg7MUgiXQpbMS44LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;This is shown as output, not typed&quot;</code></pre>
+  </div>
+</div>
+<h2>Exec Directive</h2>
+<p>This block executes even without --execute flag:</p>
+<div class="cast-block">
+  <div id="player-5" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMywgInRpdGxlIjogIkV4ZWMgRGlyZWN0aXZlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJlIl0KWzAuMzMsICJvIiwgImMiXQpbMC4zNiwgIm8iLCAiaCJdClswLjM5LCAibyIsICJvIl0KWzAuNDIsICJvIiwgIiAiXQpbMC40NSwgIm8iLCAiXCIiXQpbMC40OCwgIm8iLCAiSSJdClswLjUxLCAibyIsICIgIl0KWzAuNTQsICJvIiwgInciXQpbMC41NywgIm8iLCAiYSJdClswLjYsICJvIiwgInMiXQpbMC42MywgIm8iLCAiICJdClswLjY2LCAibyIsICJlIl0KWzAuNjksICJvIiwgIngiXQpbMC43MiwgIm8iLCAiZSJdClswLjc1LCAibyIsICJjIl0KWzAuNzgsICJvIiwgInUiXQpbMC44MSwgIm8iLCAidCJdClswLjg0LCAibyIsICJlIl0KWzAuODcsICJvIiwgImQiXQpbMC45LCAibyIsICIgIl0KWzAuOTMsICJvIiwgInYiXQpbMC45NiwgIm8iLCAiaSJdClswLjk5LCAibyIsICJhIl0KWzEuMDIsICJvIiwgIiAiXQpbMS4wNSwgIm8iLCAiZCJdClsxLjA4LCAibyIsICJpIl0KWzEuMTEsICJvIiwgInIiXQpbMS4xNCwgIm8iLCAiZSJdClsxLjE3LCAibyIsICJjIl0KWzEuMiwgIm8iLCAidCJdClsxLjIzLCAibyIsICJpIl0KWzEuMjYsICJvIiwgInYiXQpbMS4yOSwgIm8iLCAiZSJdClsxLjMyLCAibyIsICIhIl0KWzEuMzUsICJvIiwgIlwiIl0KWzEuMzgsICJvIiwgIlx1MDAxYlswbSJdClsxLjM4LCAibyIsICJcclx1MDAxYlswOzMybSQgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtZWNob1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIkkgd2FzIGV4ZWN1dGVkIHZpYSBkaXJlY3RpdmUhXCJcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzIuMTgsICJvIiwgIlxyXG4iXQpbMi4xOCwgIm8iLCAiXHUwMDFiWzBtSSB3YXMgZXhlY3V0ZWQgdmlhIGRpcmVjdGl2ZSFcdTAwMWJbMG1cclxuIl0KWzMuNjgsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzMuNjgsICJvIiwgIlx1MDAxYlswbSJdClszLjY4LCAibyIsICJkIl0KWzMuNzEsICJvIiwgImEiXQpbMy43NCwgIm8iLCAidCJdClszLjc3LCAibyIsICJlIl0KWzMuOCwgIm8iLCAiXHUwMDFiWzBtIl0KWzMuOCwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWRhdGVcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzQuNiwgIm8iLCAiXHJcbiJdCls0LjYsICJvIiwgIlx1MDAxYlswbUZyaSBNYXIgIDYgMDQ6MjU6MTggQU0gQ1NUIDIwMjZcdTAwMWJbMG1cclxuIl0KWzYuMSwgIm8iLCAiXHUwMDFiWzEzOzFIIl0KWzYuMSwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="7"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;I was executed via directive!&quot;
+date</code></pre>
+  </div>
+</div>
+<h2>Stacked Directives</h2>
+<div class="cast-block">
+  <div id="player-6" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiU3RhY2tlZCBEaXJlY3RpdmVzIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtIyBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJzIl0KWzAuMzYsICJvIiwgInkiXQpbMC40MiwgIm8iLCAicyJdClswLjQ4LCAibyIsICJ0Il0KWzAuNTQsICJvIiwgImUiXQpbMC42LCAibyIsICJtIl0KWzAuNjYsICJvIiwgImMiXQpbMC43MiwgIm8iLCAidCJdClswLjc4LCAibyIsICJsIl0KWzAuODQsICJvIiwgIiAiXQpbMC45LCAibyIsICJyIl0KWzAuOTYsICJvIiwgImUiXQpbMS4wMiwgIm8iLCAicyJdClsxLjA4LCAibyIsICJ0Il0KWzEuMTQsICJvIiwgImEiXQpbMS4yLCAibyIsICJyIl0KWzEuMjYsICJvIiwgInQiXQpbMS4zMiwgIm8iLCAiICJdClsxLjM4LCAibyIsICJuIl0KWzEuNDQsICJvIiwgImciXQpbMS41LCAibyIsICJpIl0KWzEuNTYsICJvIiwgIm4iXQpbMS42MiwgIm8iLCAieCJdClsxLjY4LCAibyIsICJcdTAwMWJbMG0iXQpbMS42OCwgIm8iLCAiXHJcdTAwMWJbMDszMm0jIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bXN5c3RlbWN0bFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bXJlc3RhcnRcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1uZ2lueFx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMi40OCwgIm8iLCAiXHJcbiJdClszLjk4LCAibyIsICJcdTAwMWJbODsxSCJdClszLjk4LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">systemctl restart nginx</code></pre>
+  </div>
+</div>
+<h2>Skip Test</h2>
+<p>The next block should be skipped entirely:</p>
+<h2>Pause Test</h2>
+<p>&lt;!-- pause 3 --&gt;</p>
+<div class="cast-block">
+  <div id="player-7" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiUGF1c2UgVGVzdCIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiZSJdClswLjMzLCAibyIsICJjIl0KWzAuMzYsICJvIiwgImgiXQpbMC4zOSwgIm8iLCAibyJdClswLjQyLCAibyIsICIgIl0KWzAuNDUsICJvIiwgIlwiIl0KWzAuNDgsICJvIiwgIkEiXQpbMC41MSwgIm8iLCAiZiJdClswLjU0LCAibyIsICJ0Il0KWzAuNTcsICJvIiwgImUiXQpbMC42LCAibyIsICJyIl0KWzAuNjMsICJvIiwgIiAiXQpbMC42NiwgIm8iLCAiYSJdClswLjY5LCAibyIsICIgIl0KWzAuNzIsICJvIiwgIjMiXQpbMC43NSwgIm8iLCAiLSJdClswLjc4LCAibyIsICJzIl0KWzAuODEsICJvIiwgImUiXQpbMC44NCwgIm8iLCAiYyJdClswLjg3LCAibyIsICJvIl0KWzAuOSwgIm8iLCAibiJdClswLjkzLCAibyIsICJkIl0KWzAuOTYsICJvIiwgIiAiXQpbMC45OSwgIm8iLCAicCJdClsxLjAyLCAibyIsICJhIl0KWzEuMDUsICJvIiwgInUiXQpbMS4wOCwgIm8iLCAicyJdClsxLjExLCAibyIsICJlIl0KWzEuMTQsICJvIiwgIlwiIl0KWzEuMTcsICJvIiwgIlx1MDAxYlswbSJdClsxLjE3LCAibyIsICJcclx1MDAxYlswOzMybSQgXHUwMDFiWzBtXHUwMDFiWzM4OzU7MTVtZWNob1x1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIkFmdGVyIGEgMy1zZWNvbmQgcGF1c2VcIlx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMS45NywgIm8iLCAiXHJcbiJdClszLjQ3LCAibyIsICJcdTAwMWJbODsxSCJdClszLjQ3LCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;After a 3-second pause&quot;</code></pre>
+  </div>
+</div>
+<h2>Clear Test</h2>
+<div class="cast-block">
+  <div id="player-8" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiQ2xlYXIgVGVzdCIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiXHUwMDFiWzBtIl0KWzAuMywgIm8iLCAiZSJdClswLjMzLCAibyIsICJjIl0KWzAuMzYsICJvIiwgImgiXQpbMC4zOSwgIm8iLCAibyJdClswLjQyLCAibyIsICIgIl0KWzAuNDUsICJvIiwgIlwiIl0KWzAuNDgsICJvIiwgIkEiXQpbMC41MSwgIm8iLCAiZiJdClswLjU0LCAibyIsICJ0Il0KWzAuNTcsICJvIiwgImUiXQpbMC42LCAibyIsICJyIl0KWzAuNjMsICJvIiwgIiAiXQpbMC42NiwgIm8iLCAiYSJdClswLjY5LCAibyIsICIgIl0KWzAuNzIsICJvIiwgInMiXQpbMC43NSwgIm8iLCAiYyJdClswLjc4LCAibyIsICJyIl0KWzAuODEsICJvIiwgImUiXQpbMC44NCwgIm8iLCAiZSJdClswLjg3LCAibyIsICJuIl0KWzAuOSwgIm8iLCAiICJdClswLjkzLCAibyIsICJjIl0KWzAuOTYsICJvIiwgImwiXQpbMC45OSwgIm8iLCAiZSJdClsxLjAyLCAibyIsICJhIl0KWzEuMDUsICJvIiwgInIiXQpbMS4wOCwgIm8iLCAiXCIiXQpbMS4xMSwgIm8iLCAiXHUwMDFiWzBtIl0KWzEuMTEsICJvIiwgIlxyXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG1cdTAwMWJbMzg7NTsxNW1lY2hvXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiQWZ0ZXIgYSBzY3JlZW4gY2xlYXJcIlx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMS45MSwgIm8iLCAiXHJcbiJdClszLjQxLCAibyIsICJcdTAwMWJbODsxSCJdClszLjQxLCAibyIsICJcdTAwMWJbMm0gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbWQyY2FzdFx1MDAxYlswbSJdCg=="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;After a screen clear&quot;</code></pre>
+  </div>
+</div>
+<script>
+function copyCode(btn) {
+  var code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {
+    AsciinemaPlayer.create(el.dataset.castSrc, el, {
+      theme: el.dataset.theme,
+      fontFamily: el.dataset.font,
+      fontSize: el.dataset.fontSize + 'px',
+      idleTimeLimit: parseInt(el.dataset.idle),
+      cols: parseInt(el.dataset.cols),
+      rows: parseInt(el.dataset.rows),
+      fit: 'width',
+      autoPlay: false,
+      preload: true
+    });
+  });
+});
+</script>
+<footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
+  Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{"version": 2, "width": 72, "height": 15, "title": "Config Block", "timestamp": 1772792718, "env": {"TERM": "xterm-256color", "THEME": "monokai", "FONT_FAMILY": "JetBrains Mono, Fira Code, Menlo, monospace", "FONT_SIZE": "16"}, "idle_time_limit": 3}
+[0.3, "o", "\u001b[38;5;204mapiVersion\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;141mv1\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;204mkind\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;141mPod\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;204mmetadata\u001b[39m\u001b[38;5;15m:\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m  \u001b[39m\u001b[38;5;204mname\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;141mtest-pod\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;204mspec\u001b[39m\u001b[38;5;15m:\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m  \u001b[39m\u001b[38;5;204mcontainers\u001b[39m\u001b[38;5;15m:\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m    \u001b[39m\u001b[38;5;15m-\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;204mname\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;141mapp\u001b[39m\r\n"]
+[0.3, "o", "\u001b[38;5;15m      \u001b[39m\u001b[38;5;204mimage\u001b[39m\u001b[38;5;15m:\u001b[39m\u001b[38;5;15m \u001b[39m\u001b[38;5;141mnginx:latest\u001b[39m\r\n"]
+[1.8, "o", "\u001b[15;1H"]
+[1.8, "o", "\u001b[2m                                                                md2cast\u001b[0m"]

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Render Mode Test</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+<style>
+  :root {
+    --bg: #1a1b26;
+    --fg: #c0caf5;
+    --muted: #565f89;
+    --accent: #7aa2f7;
+    --border: #292e42;
+    --code-bg: #24283b;
+    --blockquote-border: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: JetBrains Mono, Fira Code, Menlo, monospace;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+  h1 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+    color: #c0caf5;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 2.5rem 0 1rem;
+    color: var(--accent);
+  }
+  h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; color: var(--fg); }
+  p { margin: 0.8rem 0; }
+  li { margin: 0.3rem 0 0.3rem 1.5rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--muted);
+    background: rgba(224, 175, 104, 0.05);
+    border-radius: 0 4px 4px 0;
+  }
+  .cast-block {
+    margin: 1.5rem 0;
+  }
+  .player {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  details {
+    margin-top: 0.5rem;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 0.3rem 0;
+    user-select: none;
+  }
+  summary:hover { color: var(--accent); }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+  }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.9rem;
+    color: var(--fg);
+  }
+  .code-copy {
+    position: relative;
+    margin-top: 0.5rem;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--border);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+  .copy-btn:hover { color: var(--fg); background: var(--code-bg); }
+  .copy-btn.copied { color: #9ece6a; }
+  /* Asciinema player overrides */
+  .ap-wrapper { border-radius: 8px !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
+</head>
+<body>
+<h1>Render Mode Test</h1>
+<p>Run with: md2cast tests/manual/render.md --render or md2cast tests/manual/render.md --render-html</p>
+<h2>Introduction</h2>
+<p>This file tests the render pipeline — each code block should get a GIF (render) or player (render-html) above it.</p>
+<h2>Simple Command</h2>
+<div class="cast-block">
+  <div id="player-1" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiA4LCAidGl0bGUiOiAiU2ltcGxlIENvbW1hbmQiLCAidGltZXN0YW1wIjogMTc3Mjc5MjcxOCwgImVudiI6IHsiVEVSTSI6ICJ4dGVybS0yNTZjb2xvciIsICJUSEVNRSI6ICJtb25va2FpIiwgIkZPTlRfRkFNSUxZIjogIkpldEJyYWlucyBNb25vLCBGaXJhIENvZGUsIE1lbmxvLCBtb25vc3BhY2UiLCAiRk9OVF9TSVpFIjogIjE2In0sICJpZGxlX3RpbWVfbGltaXQiOiAzfQpbMC4zLCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdClswLjMsICJvIiwgIlx1MDAxYlswbSJdClswLjMsICJvIiwgImUiXQpbMC4zMywgIm8iLCAiYyJdClswLjM2LCAibyIsICJoIl0KWzAuMzksICJvIiwgIm8iXQpbMC40MiwgIm8iLCAiICJdClswLjQ1LCAibyIsICJcIiJdClswLjQ4LCAibyIsICJIIl0KWzAuNTEsICJvIiwgImUiXQpbMC41NCwgIm8iLCAibCJdClswLjU3LCAibyIsICJsIl0KWzAuNiwgIm8iLCAibyJdClswLjYzLCAibyIsICIgIl0KWzAuNjYsICJvIiwgImYiXQpbMC42OSwgIm8iLCAiciJdClswLjcyLCAibyIsICJvIl0KWzAuNzUsICJvIiwgIm0iXQpbMC43OCwgIm8iLCAiICJdClswLjgxLCAibyIsICJyIl0KWzAuODQsICJvIiwgImUiXQpbMC44NywgIm8iLCAibiJdClswLjksICJvIiwgImQiXQpbMC45MywgIm8iLCAiZSJdClswLjk2LCAibyIsICJyIl0KWzAuOTksICJvIiwgIiAiXQpbMS4wMiwgIm8iLCAibSJdClsxLjA1LCAibyIsICJvIl0KWzEuMDgsICJvIiwgImQiXQpbMS4xMSwgIm8iLCAiZSJdClsxLjE0LCAibyIsICJcIiJdClsxLjE3LCAibyIsICJcdTAwMWJbMG0iXQpbMS4xNywgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWVjaG9cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJIZWxsbyBmcm9tIHJlbmRlciBtb2RlXCJcdTAwMWJbMzltXHUwMDFiWzBtIl0KWzEuOTcsICJvIiwgIlxyXG4iXQpbMy40NywgIm8iLCAiXHUwMDFiWzg7MUgiXQpbMy40NywgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="6"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">echo &quot;Hello from render mode&quot;</code></pre>
+  </div>
+</div>
+<h2>Multiple Commands</h2>
+<div class="cast-block">
+  <div id="player-2" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMCwgInRpdGxlIjogIk11bHRpcGxlIENvbW1hbmRzIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzA7MzJtJCBcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJcdTAwMWJbMG0iXQpbMC4zLCAibyIsICJsIl0KWzAuMzMsICJvIiwgInMiXQpbMC4zNiwgIm8iLCAiICJdClswLjM5LCAibyIsICItIl0KWzAuNDIsICJvIiwgImwiXQpbMC40NSwgIm8iLCAiYSJdClswLjQ4LCAibyIsICJcdTAwMWJbMG0iXQpbMC40OCwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bWxzXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtLWxhXHUwMDFiWzM5bVx1MDAxYlswbSJdClsxLjI4LCAibyIsICJcclxuIl0KWzIuNzgsICJvIiwgIlx1MDAxYlswOzMybSQgXHUwMDFiWzBtIl0KWzIuNzgsICJvIiwgIlx1MDAxYlswbSJdClsyLjc4LCAibyIsICJwIl0KWzIuODEsICJvIiwgInciXQpbMi44NCwgIm8iLCAiZCJdClsyLjg3LCAibyIsICJcdTAwMWJbMG0iXQpbMi44NywgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bXB3ZFx1MDAxYlszOW1cdTAwMWJbMG0iXQpbMy42NywgIm8iLCAiXHJcbiJdCls1LjE3LCAibyIsICJcdTAwMWJbMDszMm0kIFx1MDAxYlswbSJdCls1LjE3LCAibyIsICJcdTAwMWJbMG0iXQpbNS4xNywgIm8iLCAidyJdCls1LjIsICJvIiwgImgiXQpbNS4yMywgIm8iLCAibyJdCls1LjI2LCAibyIsICJhIl0KWzUuMjksICJvIiwgIm0iXQpbNS4zMiwgIm8iLCAiaSJdCls1LjM1LCAibyIsICJcdTAwMWJbMG0iXQpbNS4zNSwgIm8iLCAiXHJcdTAwMWJbMDszMm0kIFx1MDAxYlswbVx1MDAxYlszODs1OzE1bXdob2FtaVx1MDAxYlszOW1cdTAwMWJbMG0iXQpbNi4xNSwgIm8iLCAiXHJcbiJdCls3LjY1LCAibyIsICJcdTAwMWJbMTA7MUgiXQpbNy42NSwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="8"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">ls -la
+pwd
+whoami</code></pre>
+  </div>
+</div>
+<h2>Config Block</h2>
+<div class="cast-block">
+  <div id="player-3" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxNSwgInRpdGxlIjogIkNvbmZpZyBCbG9jayIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlszODs1OzIwNG1hcGlWZXJzaW9uXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bTpcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNDFtdjFcdTAwMWJbMzltXHJcbiJdClswLjMsICJvIiwgIlx1MDAxYlszODs1OzIwNG1raW5kXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bTpcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNDFtUG9kXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsyMDRtbWV0YWRhdGFcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bW5hbWVcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW10ZXN0LXBvZFx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MjA0bXNwZWNcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bWNvbnRhaW5lcnNcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICAgIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0tXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bW5hbWVcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW1hcHBcdTAwMWJbMzltXHJcbiJdClswLjMsICJvIiwgIlx1MDAxYlszODs1OzE1bSAgICAgIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsyMDRtaW1hZ2VcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW1uZ2lueDpsYXRlc3RcdTAwMWJbMzltXHJcbiJdClsxLjgsICJvIiwgIlx1MDAxYlsxNTsxSCJdClsxLjgsICJvIiwgIlx1MDAxYlsybSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBtZDJjYXN0XHUwMDFiWzBtIl0K"
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="13"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+spec:
+  containers:
+    - name: app
+      image: nginx:latest</code></pre>
+  </div>
+</div>
+<h2>JSON Example</h2>
+<div class="cast-block">
+  <div id="player-4" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxMiwgInRpdGxlIjogIkpTT04gRXhhbXBsZSIsICJ0aW1lc3RhbXAiOiAxNzcyNzkyNzE4LCAiZW52IjogeyJURVJNIjogInh0ZXJtLTI1NmNvbG9yIiwgIlRIRU1FIjogIm1vbm9rYWkiLCAiRk9OVF9GQU1JTFkiOiAiSmV0QnJhaW5zIE1vbm8sIEZpcmEgQ29kZSwgTWVubG8sIG1vbm9zcGFjZSIsICJGT05UX1NJWkUiOiAiMTYifSwgImlkbGVfdGltZV9saW1pdCI6IDN9ClswLjMsICJvIiwgIlx1MDAxYlszODs1OzE1bXtcdTAwMWJbMzltXHJcbiJdClswLjMsICJvIiwgIlx1MDAxYlszODs1OzE1bSAgXHUwMDFiWzM5bVx1MDAxYlszODs1OzIwNG1cIm5hbWVcIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW06XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwibWQyY2FzdFwiXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSxcdTAwMWJbMzltXHJcbiJdClswLjMsICJvIiwgIlx1MDAxYlszODs1OzE1bSAgXHUwMDFiWzM5bVx1MDAxYlszODs1OzIwNG1cInZlcnNpb25cIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW06XHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiMC4zLjBcIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0sXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsxNW0gIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsyMDRtXCJmZWF0dXJlc1wiXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bTpcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1bXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cImNhc3RcIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0sXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTg2bVwiZ2lmXCJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtLFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cInJlbmRlclwiXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSxcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJodG1sXCJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtXVx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtfVx1MDAxYlszOW1cclxuIl0KWzEuOCwgIm8iLCAiXHUwMDFiWzEyOzFIIl0KWzEuOCwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="10"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  &quot;name&quot;: &quot;md2cast&quot;,
+  &quot;version&quot;: &quot;0.3.0&quot;,
+  &quot;features&quot;: [&quot;cast&quot;, &quot;gif&quot;, &quot;render&quot;, &quot;html&quot;]
+}</code></pre>
+  </div>
+</div>
+<h2>Python Code</h2>
+<div class="cast-block">
+  <div id="player-5" class="player" data-cast-src="data:application/json;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogNzIsICJoZWlnaHQiOiAxNSwgInRpdGxlIjogIlB5dGhvbiBDb2RlIiwgInRpbWVzdGFtcCI6IDE3NzI3OTI3MTgsICJlbnYiOiB7IlRFUk0iOiAieHRlcm0tMjU2Y29sb3IiLCAiVEhFTUUiOiAibW9ub2thaSIsICJGT05UX0ZBTUlMWSI6ICJKZXRCcmFpbnMgTW9ubywgRmlyYSBDb2RlLCBNZW5sbywgbW9ub3NwYWNlIiwgIkZPTlRfU0laRSI6ICIxNiJ9LCAiaWRsZV90aW1lX2xpbWl0IjogM30KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7ODFtZGVmXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTQ4bWZpYm9uYWNjaVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0oXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bW5cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtKVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW06XHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsxNW0gICAgXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bWFcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtLFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bWJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsyMDRtPVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0gXHUwMDFiWzM5bVx1MDAxYlszODs1OzE0MW0wXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSxcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNDFtMVx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICAgIFx1MDAxYlszOW1cdTAwMWJbMzg7NTs4MW1mb3JcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1fXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bWluXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtcmFuZ2VcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtKFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1uXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSlcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICAgICAgICBcdTAwMWJbMzltXHUwMDFiWzM4OzU7ODFteWllbGRcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1hXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcdTAwMWJbMzg7NTsxNW0gICAgICAgIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1hXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSxcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1iXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bT1cdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1iXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSxcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1hXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bStcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1iXHUwMDFiWzM5bVxyXG4iXQpbMC4zLCAibyIsICJcclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7ODFtZm9yXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtbnVtXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MjA0bWluXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtZmlib25hY2NpXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bShcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTQxbTEwXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSlcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtOlx1MDAxYlszOW1cclxuIl0KWzAuMywgIm8iLCAiXHUwMDFiWzM4OzU7MTVtICAgIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW1wcmludFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0oXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bW51bVx1MDAxYlszOW1cdTAwMWJbMzg7NTsxNW0sXHUwMDFiWzM5bVx1MDAxYlszODs1OzE1bSBcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtZW5kXHUwMDFiWzM5bVx1MDAxYlszODs1OzIwNG09XHUwMDFiWzM5bVx1MDAxYlszODs1OzE4Nm1cIlx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtIFx1MDAxYlszOW1cdTAwMWJbMzg7NTsxODZtXCJcdTAwMWJbMzltXHUwMDFiWzM4OzU7MTVtKVx1MDAxYlszOW1cclxuIl0KWzEuOCwgIm8iLCAiXHUwMDFiWzE1OzFIIl0KWzEuOCwgIm8iLCAiXHUwMDFiWzJtICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG1kMmNhc3RcdTAwMWJbMG0iXQo="
+       data-theme="monokai"
+       data-font="JetBrains Mono, Fira Code, Menlo, monospace"
+       data-font-size="16"
+       data-idle="3"
+       data-cols="72"
+       data-rows="13"></div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-python">def fibonacci(n):
+    a, b = 0, 1
+    for _ in range(n):
+        yield a
+        a, b = b, a + b
+
+for num in fibonacci(10):
+    print(num, end=&quot; &quot;)</code></pre>
+  </div>
+</div>
+<blockquote><p>Note: The render output should have a &quot;Made with md2cast&quot; footer at the bottom.</p></blockquote>
+<script>
+function copyCode(btn) {
+  var code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {
+    AsciinemaPlayer.create(el.dataset.castSrc, el, {
+      theme: el.dataset.theme,
+      fontFamily: el.dataset.font,
+      fontSize: el.dataset.fontSize + 'px',
+      idleTimeLimit: parseInt(el.dataset.idle),
+      cols: parseInt(el.dataset.cols),
+      rows: parseInt(el.dataset.rows),
+      fit: 'width',
+      autoPlay: false,
+      preload: true
+    });
+  });
+});
+</script>
+<footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
+  Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
+</footer>
+</body>
+</html>
