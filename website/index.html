@@ -230,30 +230,45 @@ section .inner{max-width:var(--max);margin:0 auto}
 .md-source .md-fence{color:#555}
 .md-source .md-active{color:var(--fg);transition:color .3s}
 
-/* ── Markdown mapping ──────────────────────────────────────────────── */
-.mapping{background:#0a0a0a}
-.mapping-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:3rem;
-  border:1px solid var(--card-border);border-radius:16px;overflow:hidden;
+/* ── Syntax reference ─────────────────────────────────────────────── */
+.syntax-ref{background:#0a0a0a}
+.syntax-group{margin-top:3rem}
+.syntax-group-title{
+  font-size:1.1rem;font-weight:700;margin-bottom:1.25rem;
+  padding-bottom:.5rem;border-bottom:1px solid var(--card-border);
 }
-.mapping-row{
-  display:contents;
+.syntax-table{
+  width:100%;border-collapse:collapse;margin-bottom:2.5rem;
+  font-size:.88rem;
 }
-.mapping-cell{
-  padding:1rem 1.5rem;font-size:.9rem;
-  border-bottom:1px solid rgba(255,255,255,.05);
-  display:flex;align-items:center;
+.syntax-table th{
+  text-align:left;padding:.6rem 1rem;
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);font-weight:600;
+  border-bottom:1px solid var(--card-border);
 }
-.mapping-cell:nth-child(odd){
-  background:rgba(255,255,255,.02);font-family:var(--mono);font-size:.82rem;
-  color:var(--accent);border-right:1px solid rgba(255,255,255,.05);
+.syntax-table td{
+  padding:.7rem 1rem;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  vertical-align:top;
 }
-.mapping-cell:nth-child(even){color:var(--muted)}
-.mapping-header{
-  font-weight:600;font-size:.75rem;text-transform:uppercase;
-  letter-spacing:.12em;color:var(--muted);
-  background:rgba(255,255,255,.04)!important;
-  padding:.75rem 1.5rem;
+.syntax-table tr:hover td{background:rgba(255,255,255,.015)}
+.syntax-table code{
+  font-family:var(--mono);font-size:.8rem;
+  background:rgba(41,151,255,.08);color:var(--accent);
+  padding:.15rem .45rem;border-radius:4px;
+  white-space:nowrap;
+}
+.syntax-table .desc{color:var(--muted);font-size:.85rem;line-height:1.5}
+.syntax-table .example{
+  font-family:var(--mono);font-size:.78rem;color:#666;
+  margin-top:.25rem;display:block;
+}
+.directive-tag{
+  font-family:var(--mono);font-size:.78rem;
+  background:rgba(191,90,242,.1);color:var(--accent2);
+  padding:.2rem .5rem;border-radius:4px;
+  border:1px solid rgba(191,90,242,.2);
 }
 
 /* ── Features ──────────────────────────────────────────────────────── */
@@ -377,8 +392,8 @@ footer a:hover{color:var(--fg)}
 @media(max-width:900px){
   .steps-grid,.features-grid,.pricing-grid,.use-cases-grid{grid-template-columns:1fr}
   .demo-pair{grid-template-columns:1fr}
-  .mapping-grid{grid-template-columns:1fr;gap:0}
-  .mapping-cell:nth-child(odd){border-right:none}
+  .syntax-table{font-size:.8rem}
+  .syntax-table td,.syntax-table th{padding:.5rem .6rem}
   nav .links{display:none}
 }
 @media(max-width:600px){
@@ -397,6 +412,7 @@ footer a:hover{color:var(--fg)}
     <div class="logo">md2cast<span>.dev</span></div>
     <div class="links">
       <a href="#how-it-works">How it Works</a>
+      <a href="#syntax">Syntax</a>
       <a href="#features">Features</a>
       <a href="#use-cases">Use Cases</a>
       <a href="#pricing">Pricing</a>
@@ -514,34 +530,108 @@ echo "Hello, world!"
   </div>
 </section>
 
-<!-- ── Mapping ──────────────────────────────────────────────────────── -->
-<section class="mapping">
+<!-- ── Syntax Reference ─────────────────────────────────────────────── -->
+<section class="syntax-ref" id="syntax">
   <div class="inner">
-    <div class="section-label reveal">Markdown Mapping</div>
+    <div class="section-label reveal">Syntax Reference</div>
     <div class="section-title reveal">You already know the syntax.</div>
-    <p class="section-subtitle">Standard Markdown elements map directly to screencast visuals. No DSL to learn.</p>
-    <div class="mapping-grid">
-      <div class="mapping-cell mapping-header">Markdown</div>
-      <div class="mapping-cell mapping-header">Screencast</div>
-      <div class="mapping-cell"># Heading</div>
-      <div class="mapping-cell">Title card with border</div>
-      <div class="mapping-cell">## Heading</div>
-      <div class="mapping-cell">Section divider with banner</div>
-      <div class="mapping-cell">Regular text</div>
-      <div class="mapping-cell">Narrated comment (dimmed)</div>
-      <div class="mapping-cell">```bash</div>
-      <div class="mapping-cell">Typed command with $ prompt</div>
-      <div class="mapping-cell">```</div>
-      <div class="mapping-cell">Static output block</div>
-      <div class="mapping-cell">> blockquote</div>
-      <div class="mapping-cell">Highlighted note (yellow)</div>
-      <div class="mapping-cell">---</div>
-      <div class="mapping-cell">Screen clear</div>
-      <div class="mapping-cell">&lt;!-- exec --&gt;</div>
-      <div class="mapping-cell">Execute commands for real output</div>
-      <div class="mapping-cell">&lt;!-- pause 3 --&gt;</div>
-      <div class="mapping-cell">Custom pause (3 seconds)</div>
+    <p class="section-subtitle reveal">Standard Markdown maps to screencast visuals. Directives add precision &mdash; without breaking your docs.</p>
+
+    <div class="syntax-group reveal">
+      <div class="syntax-group-title">Markdown Elements</div>
+      <table class="syntax-table">
+        <thead><tr><th>Markdown</th><th>Screencast Output</th></tr></thead>
+        <tbody>
+          <tr><td><code># Heading</code></td><td class="desc">Title card &mdash; clears screen, draws a box border around the title</td></tr>
+          <tr><td><code>## Heading</code></td><td class="desc">Section divider &mdash; clears screen, shows a banner</td></tr>
+          <tr><td><code>### Heading</code></td><td class="desc">Subsection label &mdash; bold inline text</td></tr>
+          <tr><td><code>Regular text</code></td><td class="desc">Narrated comment &mdash; dimmed <code># text</code> in the terminal</td></tr>
+          <tr><td><code>```bash</code></td><td class="desc">Typed command &mdash; green <code>$</code> prompt, character-by-character typing</td></tr>
+          <tr><td><code>```</code> <span style="color:var(--muted)">(no lang)</span></td><td class="desc">Static output &mdash; displayed all at once, no typing animation</td></tr>
+          <tr><td><code>```yaml</code> <code>```python</code> <code>```json</code></td><td class="desc">Syntax-highlighted static block &mdash; Pygments coloring</td></tr>
+          <tr><td><code>&gt; blockquote</code></td><td class="desc">Highlighted note &mdash; yellow sidebar marker</td></tr>
+          <tr><td><code>---</code></td><td class="desc">Screen clear &mdash; resets the terminal</td></tr>
+        </tbody>
+      </table>
     </div>
+
+    <div class="syntax-group reveal">
+      <div class="syntax-group-title">Directives</div>
+      <p class="section-subtitle" style="margin-top:0;margin-bottom:1.5rem">HTML comments that control behavior per-block. They don&rsquo;t render in normal Markdown viewers.</p>
+      <table class="syntax-table">
+        <thead><tr><th>Directive</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>&lt;!-- exec --&gt;</code></td>
+            <td class="desc">Execute the next bash block and capture real output<span class="example">Runs the command in a subprocess, records stdout/stderr</span></td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- no-exec --&gt;</code></td>
+            <td class="desc">Skip execution for the next block, even with <code>--execute</code> flag</td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- pause 3 --&gt;</code></td>
+            <td class="desc">Pause for N seconds before the next element<span class="example">Any number: 0.5, 1, 3, 10</span></td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- type-delay 0.01 --&gt;</code></td>
+            <td class="desc">Override typing speed for the next block<span class="example">Lower = faster. Default: 0.03</span></td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- prompt # --&gt;</code></td>
+            <td class="desc">Change the prompt character for the next block<span class="example"><code>#</code> for root, <code>&gt;&gt;&gt;</code> for Python, <code>mysql&gt;</code> for databases</span></td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- output --&gt;</code></td>
+            <td class="desc">Force a <code>```bash</code> block to display as static output instead of typed commands</td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- view-exec --&gt;</code></td>
+            <td class="desc">Show commands as a preview first, then execute each one with real output</td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- skip --&gt;</code></td>
+            <td class="desc">Skip the next block entirely &mdash; it won&rsquo;t appear in the screencast</td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- clear --&gt;</code></td>
+            <td class="desc">Clear the screen (same as <code>---</code>)</td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- browser --&gt;</code> <span class="pro-badge">Pro</span></td>
+            <td class="desc">Next code block contains browser automation steps (Playwright)<span class="example">open, click, type, wait, screenshot, scroll, video</span></td>
+          </tr>
+          <tr>
+            <td><code>&lt;!-- gui --&gt;</code> <span class="pro-badge">Pro</span></td>
+            <td class="desc">Next code block contains desktop GUI automation steps<span class="example">launch, focus, click, type, key, screenshot</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="syntax-group reveal">
+      <div class="syntax-group-title">CLI Flags</div>
+      <table class="syntax-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--gif</code></td><td class="desc">Also generate a GIF via agg</td></tr>
+          <tr><td><code>--execute</code></td><td class="desc">Run all bash blocks and capture real output</td></tr>
+          <tr><td><code>--render</code></td><td class="desc">Generate new Markdown with GIFs embedded above each code block</td></tr>
+          <tr><td><code>--render-html</code></td><td class="desc">Generate an HTML page with interactive asciinema players</td></tr>
+          <tr><td><code>--embed</code></td><td class="desc">Self-contained HTML &mdash; cast data inline, no external files</td></tr>
+          <tr><td><code>--split</code></td><td class="desc">One <code>.cast</code> per <code>##</code> section</td></tr>
+          <tr><td><code>--section N</code></td><td class="desc">Render only section N</td></tr>
+          <tr><td><code>--list</code></td><td class="desc">List all sections in the document</td></tr>
+          <tr><td><code>--cols N</code></td><td class="desc">Terminal width (default: 110)</td></tr>
+          <tr><td><code>--rows N</code></td><td class="desc">Terminal height (default: auto-sized to content)</td></tr>
+          <tr><td><code>--theme FILE</code></td><td class="desc">Custom theme JSON for colors, timing, and player settings</td></tr>
+          <tr><td><code>--init-theme</code></td><td class="desc">Print a default theme JSON to stdout</td></tr>
+          <tr><td><code>-o FILE</code></td><td class="desc">Custom output path</td></tr>
+          <tr><td><code>-C DIR</code></td><td class="desc">Working directory for executed commands</td></tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
 </section>
 
