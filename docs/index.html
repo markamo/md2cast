@@ -3,1002 +3,1084 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>md2cast — Markdown to Screencast</title>
-<meta name="description" content="Convert Markdown documentation into beautiful asciinema screencasts. Write your tutorial, run md2cast, get a .cast or GIF.">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>md2cast — Executable documentation for developers</title>
+<meta name="description" content="Turn Markdown into executable documentation. Every code block becomes a terminal recording, browser walkthrough, or GUI demo — rebuilt automatically on every push.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
 <style>
-/* ── Reset & Variables ─────────────────────────────────────────────── */
+/* ── Reset & Variables ───────────────────────────── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#000;
-  --fg:#f5f5f7;
-  --muted:#86868b;
-  --accent:#2997ff;
-  --accent2:#bf5af2;
-  --green:#30d158;
-  --card:#1d1d1f;
-  --card-border:#333;
-  --glow:rgba(41,151,255,.15);
-  --font:'Inter',sans-serif;
-  --mono:'JetBrains Mono',monospace;
-  --max:1120px;
+  --bg:#08090c;
+  --bg2:#0c0e13;
+  --surface:#111318;
+  --border:#1c1f28;
+  --border2:#252833;
+  --accent:#39e8a8;
+  --accent-dim:rgba(57,232,168,.12);
+  --accent-glow:rgba(57,232,168,.25);
+  --purple:#9d7dff;
+  --purple-dim:rgba(157,125,255,.1);
+  --amber:#f5a623;
+  --text:#eceef2;
+  --muted:#5a5f72;
+  --muted2:#3a3e4d;
+  --font:'Geist',sans-serif;
+  --mono:'DM Mono',monospace;
+  --serif:'Instrument Serif',serif;
+  --max:1100px;
+  --r:10px;
 }
 
-/* ── Base ──────────────────────────────────────────────────────────── */
-html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
-body{font-family:var(--font);background:var(--bg);color:var(--fg);line-height:1.5;overflow-x:hidden}
-a{color:var(--accent);text-decoration:none;transition:opacity .2s}
-a:hover{opacity:.8}
-::selection{background:var(--accent);color:#fff}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;overflow-x:hidden}
+::selection{background:var(--accent);color:#000}
+a{text-decoration:none;transition:opacity .2s}
 
-/* ── Navigation ────────────────────────────────────────────────────── */
+/* ── Noise overlay ───────────────────────────────── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:999;mix-blend-mode:overlay;
+}
+
+/* ── Navigation ──────────────────────────────────── */
 nav{
   position:fixed;top:0;left:0;right:0;z-index:100;
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
-  background:rgba(0,0,0,.72);
-  border-bottom:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);
+  background:rgba(8,9,12,.75);
+  border-bottom:1px solid var(--border);
 }
-nav .inner{
+.nav-inner{
   max-width:var(--max);margin:0 auto;padding:0 2rem;
-  display:flex;align-items:center;justify-content:space-between;height:52px;
+  display:flex;align-items:center;justify-content:space-between;height:56px;
 }
-nav .logo{font-weight:600;font-size:1.1rem;letter-spacing:-.02em;color:var(--fg)}
-nav .logo span{color:var(--muted)}
-nav .links{display:flex;gap:2rem;font-size:.875rem;color:var(--muted)}
-nav .links a{color:var(--muted);transition:color .2s}
-nav .links a:hover{color:var(--fg);opacity:1}
+.nav-logo{
+  font-family:var(--mono);font-size:.95rem;font-weight:500;
+  color:var(--accent);letter-spacing:-.02em;
+}
+.nav-logo em{color:var(--muted);font-style:normal}
+.nav-links{display:flex;align-items:center;gap:2rem;list-style:none}
+.nav-links a{font-size:.85rem;color:var(--muted);font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--text);opacity:1}
+.nav-cta{
+  font-size:.8rem;font-weight:600;
+  background:var(--accent);color:#000 !important;
+  padding:.45rem 1.1rem;border-radius:6px;transition:all .2s !important;
+}
+.nav-cta:hover{opacity:.85 !important;transform:translateY(-1px)}
 
-/* ── Hero ──────────────────────────────────────────────────────────── */
+/* ── Hero ────────────────────────────────────────── */
 .hero{
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;text-align:center;
-  padding:7rem 2rem 5rem;
-  position:relative;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:9rem 2rem 5rem;
+  position:relative;overflow:hidden;
 }
-.hero::before{
-  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:800px;height:800px;
-  background:radial-gradient(circle,var(--glow) 0%,transparent 70%);
-  pointer-events:none;opacity:.6;
+.hero-glow{
+  position:absolute;top:-10%;left:50%;transform:translateX(-50%);
+  width:900px;height:600px;
+  background:radial-gradient(ellipse at center, rgba(57,232,168,.07) 0%, transparent 65%);
+  pointer-events:none;
 }
-.hero .badge{
-  display:inline-block;padding:.35rem 1rem;border-radius:100px;
-  font-size:.8rem;font-weight:500;letter-spacing:.02em;
-  background:rgba(41,151,255,.1);color:var(--accent);
-  border:1px solid rgba(41,151,255,.2);margin-bottom:1.5rem;
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(57,232,168,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(57,232,168,.025) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 70% at 50% 0%,black 40%,transparent 100%);
+  pointer-events:none;
 }
+.badge{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:var(--accent-dim);border:1px solid rgba(57,232,168,.2);
+  border-radius:100px;padding:.35rem 1rem;
+  font-family:var(--mono);font-size:.75rem;color:var(--accent);
+  margin-bottom:2rem;position:relative;
+  animation:fadeUp .6s ease both;
+}
+.badge-pulse{
+  width:6px;height:6px;border-radius:50%;background:var(--accent);
+  animation:pulse 2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+
 .hero h1{
-  font-size:clamp(3rem,8vw,5.5rem);font-weight:700;
-  letter-spacing:-.04em;line-height:1.05;
-  max-width:800px;
+  font-family:var(--font);
+  font-size:clamp(3.2rem,8vw,6rem);
+  font-weight:800;letter-spacing:-.05em;line-height:.97;
+  max-width:820px;margin-bottom:1.75rem;
+  animation:fadeUp .6s .08s ease both;
 }
-.hero h1 .gradient{
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  background-clip:text;
+.hero h1 .serif-word{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  letter-spacing:-.01em;
 }
-.hero .subtitle{
-  margin-top:1.5rem;font-size:1.35rem;color:var(--muted);
-  max-width:560px;line-height:1.6;font-weight:400;
+.hero h1 .accent-word{color:var(--accent)}
+
+.hero-sub{
+  font-size:clamp(1rem,2vw,1.2rem);color:var(--muted);
+  max-width:540px;line-height:1.65;margin-bottom:2.5rem;
+  animation:fadeUp .6s .16s ease both;
 }
-.hero .cta{display:flex;gap:1rem;margin-top:2.5rem;flex-wrap:wrap;justify-content:center}
+.hero-sub strong{color:var(--text);font-weight:500}
+
+.hero-actions{
+  display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;justify-content:center;
+  margin-bottom:3rem;animation:fadeUp .6s .24s ease both;
+}
 .btn{
   display:inline-flex;align-items:center;gap:.5rem;
-  padding:.85rem 2rem;border-radius:100px;font-size:1rem;
-  font-weight:500;cursor:pointer;border:none;transition:all .3s;
+  padding:.75rem 1.75rem;border-radius:8px;
+  font-size:.9rem;font-weight:600;cursor:pointer;border:none;
+  transition:all .25s;font-family:var(--font);
 }
-.btn-primary{
-  background:var(--accent);color:#fff;
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{opacity:1;transform:translateY(-2px);box-shadow:0 8px 30px var(--accent-glow)}
+.btn-ghost{
+  background:transparent;color:var(--text);
+  border:1px solid var(--border2);
 }
-.btn-primary:hover{background:#1a8aef;opacity:1;transform:translateY(-1px)}
-.btn-secondary{
-  background:transparent;color:var(--fg);
-  border:1px solid var(--card-border);
-}
-.btn-secondary:hover{background:rgba(255,255,255,.05);opacity:1;transform:translateY(-1px)}
+.btn-ghost:hover{opacity:1;border-color:var(--muted2);background:rgba(255,255,255,.03);transform:translateY(-2px)}
 
-/* ── Install bar ───────────────────────────────────────────────────── */
-.install{
-  margin-top:3.5rem;
-  background:var(--card);border:1px solid var(--card-border);
-  border-radius:14px;padding:1rem 1.5rem;
-  display:flex;align-items:center;gap:1rem;
-  font-family:var(--mono);font-size:.9rem;
-  max-width:520px;width:100%;
-  position:relative;
+/* Install bar */
+.install-bar{
+  display:inline-flex;align-items:center;gap:.75rem;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:.8rem 1.25rem;
+  font-family:var(--mono);font-size:.85rem;
+  animation:fadeUp .6s .3s ease both;
+  transition:border-color .3s;
 }
-.install .prompt{color:var(--green);user-select:none}
-.install code{color:var(--fg);flex:1;user-select:all}
-.install .copy-btn{
+.install-bar:hover{border-color:var(--border2)}
+.install-bar .prompt{color:var(--accent)}
+.install-bar code{color:var(--text);user-select:all}
+.copy-btn{
   background:none;border:none;color:var(--muted);cursor:pointer;
-  font-size:.8rem;padding:.3rem .6rem;border-radius:6px;
-  transition:all .2s;font-family:var(--font);
+  font-family:var(--mono);font-size:.72rem;padding:.3rem .6rem;
+  border-radius:5px;transition:all .2s;
 }
-.install .copy-btn:hover{color:var(--fg);background:rgba(255,255,255,.08)}
-.install .copy-btn.copied{color:var(--green)}
+.copy-btn:hover{color:var(--text);background:var(--border)}
+.copy-btn.done{color:var(--accent)}
 
-/* ── Section layout ────────────────────────────────────────────────── */
-section{padding:6rem 2rem}
-section .inner{max-width:var(--max);margin:0 auto}
-.section-label{
-  font-size:.8rem;text-transform:uppercase;letter-spacing:.15em;
-  color:var(--accent);font-weight:600;margin-bottom:.75rem;
+/* ── Terminal demo ───────────────────────────────── */
+.term-wrap{
+  width:100%;max-width:740px;margin-top:3.5rem;
+  animation:fadeUp .6s .36s ease both;
 }
-.section-title{
-  font-size:clamp(2rem,5vw,3.2rem);font-weight:700;
-  letter-spacing:-.03em;line-height:1.15;
-  max-width:640px;
+.term{
+  background:#070a0f;border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;
+  box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.03),0 0 60px rgba(57,232,168,.04);
 }
-.section-subtitle{
-  font-size:1.1rem;color:var(--muted);margin-top:1rem;
-  max-width:520px;line-height:1.7;
+.term-bar{
+  display:flex;align-items:center;gap:.4rem;
+  padding:.7rem 1rem;background:rgba(255,255,255,.02);
+  border-bottom:1px solid var(--border);
+}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+.term-title{flex:1;text-align:center;font-family:var(--mono);font-size:.7rem;color:var(--muted);margin-right:1.5rem}
+.term-body{
+  padding:1.5rem 1.75rem;
+  font-family:var(--mono);font-size:.82rem;line-height:1.9;
+  min-height:200px;
+}
+.t-p{color:var(--accent)}.t-c{color:var(--text)}.t-m{color:var(--muted)}
+.t-out{color:#6a7aff}.t-ok{color:var(--accent)}.t-path{color:var(--amber)}
+.t-warn{color:var(--amber)}
+.cursor{display:inline-block;width:7px;height:1em;background:var(--accent);vertical-align:text-bottom;animation:blink 1s step-end infinite;margin-left:1px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── Section commons ─────────────────────────────── */
+section{padding:7rem 2rem}
+.inner{max-width:var(--max);margin:0 auto}
+.s-label{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:.9rem;
+}
+.s-title{
+  font-size:clamp(2rem,5vw,3.2rem);font-weight:800;
+  letter-spacing:-.04em;line-height:1.08;max-width:660px;
+}
+.s-title .serif-word{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:0}
+.s-sub{
+  font-size:.95rem;color:var(--muted);margin-top:.9rem;
+  max-width:500px;line-height:1.7;
 }
 
-/* ── How it works ──────────────────────────────────────────────────── */
-.how-it-works{background:var(--bg)}
-.steps-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:4rem;
+.divider{height:1px;background:var(--border);max-width:var(--max);margin:0 auto}
+
+/* ── How it works ────────────────────────────────── */
+.steps{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1.5px;
+  margin-top:4rem;background:var(--border);border-radius:16px;overflow:hidden;
 }
 .step{
-  background:var(--card);border:1px solid var(--card-border);
-  border-radius:20px;padding:2.5rem 2rem;
-  position:relative;overflow:hidden;
-  transition:border-color .3s,transform .3s;
+  background:var(--surface);padding:2.5rem 2rem;
+  transition:background .3s;position:relative;
 }
-.step:hover{border-color:rgba(41,151,255,.3);transform:translateY(-2px)}
-.step-num{
-  font-size:4rem;font-weight:800;letter-spacing:-.04em;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  background-clip:text;line-height:1;margin-bottom:1rem;
+.step:hover{background:#12151c}
+.step-n{
+  font-family:var(--mono);font-size:3.5rem;font-weight:300;
+  color:var(--border2);line-height:1;margin-bottom:1.25rem;
 }
-.step h3{font-size:1.25rem;font-weight:600;margin-bottom:.75rem}
-.step p{color:var(--muted);font-size:.95rem;line-height:1.6}
-.step pre{
-  margin-top:1.25rem;background:rgba(0,0,0,.4);
-  border-radius:10px;padding:1rem 1.25rem;
-  font-family:var(--mono);font-size:.82rem;
-  overflow-x:auto;color:var(--fg);
-  border:1px solid rgba(255,255,255,.06);
-}
-.step pre .prompt{color:var(--green)}
-.step pre .comment{color:var(--muted)}
-.step pre .flag{color:var(--accent2)}
-
-/* ── Demo ──────────────────────────────────────────────────────────── */
-.demo{background:linear-gradient(180deg,var(--bg) 0%,#0a0a0a 100%)}
-.demo-window{
-  margin-top:3rem;background:#111;border:1px solid var(--card-border);
-  border-radius:16px;overflow:hidden;
-  box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.05);
-  max-width:860px;margin-left:auto;margin-right:auto;
-}
-.demo-titlebar{
-  display:flex;align-items:center;gap:.5rem;
-  padding:.75rem 1rem;background:#1a1a1a;
-  border-bottom:1px solid rgba(255,255,255,.06);
-}
-.demo-dot{width:12px;height:12px;border-radius:50%}
-.demo-dot.red{background:#ff5f57}
-.demo-dot.yellow{background:#febc2e}
-.demo-dot.green{background:#28c840}
-.demo-titlebar span{
-  flex:1;text-align:center;font-size:.75rem;color:var(--muted);
-  margin-right:2rem;
-}
-.demo-body{padding:1.5rem 2rem;font-family:var(--mono);font-size:.85rem;line-height:1.8;min-height:340px}
-.demo-body .line{display:block;opacity:0;transform:translateY(4px);animation:fadeInLine .3s forwards}
-.demo-body .dim{color:#555}
-.demo-body .green{color:var(--green)}
-.demo-body .blue{color:var(--accent)}
-.demo-body .purple{color:var(--accent2)}
-.demo-body .yellow{color:#ffd60a}
-.demo-body .white{color:var(--fg)}
-.demo-body .muted{color:var(--muted)}
-@keyframes fadeInLine{to{opacity:1;transform:translateY(0)}}
-.demo-pair{
-  display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;
-  max-width:1060px;margin-left:auto;margin-right:auto;
-}
-.demo-pair .demo-window{margin:0}
-.demo-label{
-  font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;
-  color:var(--muted);font-weight:600;margin-bottom:.75rem;
-}
-.demo-body .typed{
-  display:inline;overflow:hidden;white-space:nowrap;
-  border-right:2px solid var(--green);
-  animation:typing 1.2s steps(30) forwards,blink .6s step-end infinite;
-}
-@keyframes typing{from{max-width:0}to{max-width:100%}}
-@keyframes blink{50%{border-color:transparent}}
-.demo-body .cursor{
-  display:inline-block;width:8px;height:1.1em;
-  background:var(--green);vertical-align:text-bottom;
-  animation:blink .6s step-end infinite;
-  margin-left:2px;
-}
-.md-source{
-  padding:1.5rem 2rem;font-family:var(--mono);font-size:.82rem;
-  line-height:1.9;color:var(--muted);min-height:340px;
-}
-.md-source .line{display:block}
-.md-source .md-h{color:var(--accent);font-weight:600}
-.md-source .md-code{color:var(--green)}
-.md-source .md-text{color:var(--muted)}
-.md-source .md-quote{color:#ffd60a}
-.md-source .md-fence{color:#555}
-.md-source .md-active{color:var(--fg);transition:color .3s}
-
-/* ── Syntax reference ─────────────────────────────────────────────── */
-.syntax-ref{background:#0a0a0a}
-.syntax-group{margin-top:3rem}
-.syntax-group-title{
-  font-size:1.1rem;font-weight:700;margin-bottom:1.25rem;
-  padding-bottom:.5rem;border-bottom:1px solid var(--card-border);
-}
-.syntax-table{
-  width:100%;border-collapse:collapse;margin-bottom:2.5rem;
-  font-size:.88rem;
-}
-.syntax-table th{
-  text-align:left;padding:.6rem 1rem;
-  font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;
-  color:var(--muted);font-weight:600;
-  border-bottom:1px solid var(--card-border);
-}
-.syntax-table td{
-  padding:.7rem 1rem;
-  border-bottom:1px solid rgba(255,255,255,.04);
-  vertical-align:top;
-}
-.syntax-table tr:hover td{background:rgba(255,255,255,.015)}
-.syntax-table code{
-  font-family:var(--mono);font-size:.8rem;
-  background:rgba(41,151,255,.08);color:var(--accent);
-  padding:.15rem .45rem;border-radius:4px;
-  white-space:nowrap;
-}
-.syntax-table .desc{color:var(--muted);font-size:.85rem;line-height:1.5}
-.syntax-table .example{
-  font-family:var(--mono);font-size:.78rem;color:#666;
-  margin-top:.25rem;display:block;
-}
-.directive-tag{
+.step h3{font-size:1.05rem;font-weight:700;margin-bottom:.6rem;letter-spacing:-.02em}
+.step p{font-size:.875rem;color:var(--muted);line-height:1.65}
+.step code{
   font-family:var(--mono);font-size:.78rem;
-  background:rgba(191,90,242,.1);color:var(--accent2);
-  padding:.2rem .5rem;border-radius:4px;
-  border:1px solid rgba(191,90,242,.2);
+  background:var(--accent-dim);color:var(--accent);
+  padding:.15rem .45rem;border-radius:4px;
 }
+.step-code{
+  margin-top:1.25rem;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:.9rem 1.1rem;
+  font-family:var(--mono);font-size:.77rem;line-height:1.8;
+  color:var(--muted);overflow-x:auto;
+}
+.step-code .p{color:var(--accent)}.step-code .f{color:var(--purple)}.step-code .c{color:var(--muted2)}
 
-/* ── Features ──────────────────────────────────────────────────────── */
-.features{background:var(--bg)}
-.features-grid{
+/* ── Before / After ──────────────────────────────── */
+.ba-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:4rem;
+}
+.ba-card{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.ba-label{
+  font-family:var(--mono);font-size:.7rem;color:var(--muted);
+  padding:.6rem 1rem;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.5rem;
+}
+.ba-label .live{
+  display:inline-flex;align-items:center;gap:.35rem;
+  color:var(--accent);font-size:.65rem;
+}
+.ba-label .live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+.ba-body{padding:1.5rem;font-family:var(--mono);font-size:.8rem;line-height:1.85;color:var(--muted)}
+.ba-body .h{color:var(--accent);font-weight:500}
+.ba-body .kw{color:var(--purple)}
+.ba-body .c{color:var(--muted2)}
+.ba-body .ok{color:var(--accent)}
+.ba-body .p{color:var(--accent)}
+.ba-body .gif-block{
+  display:flex;align-items:center;gap:.75rem;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:.75rem 1rem;margin:.5rem 0;
+  color:var(--text);font-size:.78rem;
+}
+.gif-icon{font-size:1.2rem}
+.gif-meta{display:flex;flex-direction:column;gap:.2rem}
+.gif-name{color:var(--amber)}
+.gif-size{color:var(--muted);font-size:.7rem}
+
+/* ── Capture types ───────────────────────────────── */
+.capture-grid{
   display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:4rem;
 }
-.feature{
-  background:var(--card);border:1px solid var(--card-border);
-  border-radius:16px;padding:2rem;
-  transition:border-color .3s,transform .3s;
+.cap{
+  border:1px solid var(--border);border-radius:14px;padding:2rem;
+  transition:all .3s;position:relative;overflow:hidden;
 }
-.feature:hover{border-color:rgba(41,151,255,.25);transform:translateY(-2px)}
-.feature-icon{
-  font-size:1.8rem;margin-bottom:1rem;
-  width:48px;height:48px;display:flex;align-items:center;justify-content:center;
-  background:rgba(41,151,255,.1);border-radius:12px;
+.cap:hover{border-color:var(--border2);transform:translateY(-3px)}
+.cap::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cap-color,var(--accent)),transparent);
+  opacity:0;transition:opacity .3s;
 }
-.feature h3{font-size:1.05rem;font-weight:600;margin-bottom:.5rem}
-.feature p{color:var(--muted);font-size:.88rem;line-height:1.6}
+.cap:hover::before{opacity:1}
+.cap.terminal{--cap-color:var(--accent)}
+.cap.browser{--cap-color:var(--purple)}
+.cap.gui{--cap-color:var(--amber)}
+.cap-icon{font-size:2rem;margin-bottom:1.25rem}
+.cap h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem;letter-spacing:-.02em;display:flex;align-items:center;gap:.5rem}
+.cap p{font-size:.875rem;color:var(--muted);line-height:1.65;margin-bottom:1.25rem}
+.pro-tag{
+  display:inline-block;
+  font-family:var(--mono);font-size:.65rem;
+  background:var(--purple-dim);color:var(--purple);
+  border:1px solid rgba(157,125,255,.25);
+  padding:.15rem .55rem;border-radius:4px;
+}
+.cap-syntax{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:.75rem 1rem;
+  font-family:var(--mono);font-size:.75rem;line-height:1.7;color:var(--muted2);
+}
+.cap-syntax .kw{color:var(--purple)}.cap-syntax .str{color:var(--amber)}.cap-syntax .acc{color:var(--accent)}
 
-/* ── Pricing ───────────────────────────────────────────────────────── */
-.pricing{background:#0a0a0a}
-.pricing-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:4rem;
-  align-items:start;
-}
-.price-card{
-  background:var(--card);border:1px solid var(--card-border);
-  border-radius:20px;padding:2.5rem 2rem;
-  transition:border-color .3s,transform .3s;
-}
-.price-card:hover{transform:translateY(-2px)}
-.price-card.featured{
-  border-color:var(--accent);
-  box-shadow:0 0 60px rgba(41,151,255,.12);
-  position:relative;
-}
-.price-card.featured::before{
-  content:'Most Popular';position:absolute;top:-12px;left:50%;transform:translateX(-50%);
-  background:var(--accent);color:#fff;font-size:.7rem;font-weight:600;
-  padding:.3rem 1rem;border-radius:100px;text-transform:uppercase;letter-spacing:.05em;
-}
-.price-card .tier{font-size:.85rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.1em}
-.price-card .price{font-size:3rem;font-weight:700;letter-spacing:-.04em;margin:.5rem 0}
-.price-card .price span{font-size:1rem;color:var(--muted);font-weight:400}
-.price-card .desc{color:var(--muted);font-size:.9rem;margin-bottom:1.5rem;line-height:1.5}
-.price-card ul{list-style:none;margin-bottom:2rem}
-.price-card li{
-  padding:.5rem 0;font-size:.9rem;color:var(--muted);
-  display:flex;align-items:flex-start;gap:.6rem;
-}
-.price-card li::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-top:.5rem;flex-shrink:0}
-.price-card .btn{width:100%;justify-content:center}
-
-/* ── Pro badge ──────────────────────────────────────────────────────── */
-.pro-badge{
-  display:inline-block;background:rgba(191,90,242,.12);color:var(--accent2);
-  border:1px solid rgba(191,90,242,.25);font-size:.65rem;font-weight:600;
-  padding:.15rem .5rem;border-radius:100px;margin-left:.5rem;vertical-align:middle;
-  letter-spacing:.03em;text-transform:uppercase;
-}
-
-/* ── Use cases ──────────────────────────────────────────────────────── */
-.use-cases{background:#0a0a0a}
-.use-cases-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:4rem;
-}
-.use-case{
-  border:1px solid var(--card-border);border-radius:16px;padding:2rem;
-  transition:border-color .3s,transform .3s;
-}
-.use-case:hover{border-color:rgba(191,90,242,.3);transform:translateY(-2px)}
-.use-case-icon{font-size:1.6rem;margin-bottom:1rem}
-.use-case h3{font-size:1.05rem;font-weight:600;margin-bottom:.5rem}
-.use-case p{color:var(--muted);font-size:.88rem;line-height:1.6}
-
-/* ── Comparison ─────────────────────────────────────────────────────── */
-.comparison{background:var(--bg)}
-.compare-table{
+/* ── Directives table ────────────────────────────── */
+.dir-table{
   width:100%;border-collapse:collapse;margin-top:3rem;
   font-family:var(--mono);font-size:.82rem;
 }
-.compare-table th{
-  padding:1rem 1.25rem;text-align:left;
-  border-bottom:1px solid var(--card-border);
-  color:var(--muted);font-weight:500;letter-spacing:.08em;
-  text-transform:uppercase;font-size:.7rem;
+.dir-table th{
+  padding:.75rem 1.25rem;text-align:left;
+  border-bottom:1px solid var(--border);
+  font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;
 }
-.compare-table th.hl{color:var(--accent)}
-.compare-table td{
-  padding:1rem 1.25rem;
-  border-bottom:1px solid rgba(255,255,255,.04);color:var(--muted);
+.dir-table td{
+  padding:.9rem 1.25rem;border-bottom:1px solid rgba(28,31,40,.5);
+  vertical-align:top;
 }
-.compare-table tr:hover td{background:rgba(255,255,255,.015)}
-.compare-table td:first-child{color:var(--fg);font-weight:500}
-.compare-table td.yes{color:var(--green)}
-.compare-table td.no{color:rgba(255,255,255,.15)}
-.compare-table td.hl{color:var(--green);font-weight:600}
-.compare-table .md2cast-row{background:rgba(41,151,255,.04)}
-.compare-table .md2cast-row td:first-child{color:var(--accent);font-weight:700}
+.dir-table tr:last-child td{border-bottom:none}
+.dir-table tr:hover td{background:rgba(255,255,255,.01)}
+.dir-table td:first-child{color:var(--accent);white-space:nowrap}
+.dir-table td:last-child{color:var(--muted);font-size:.8rem}
 
-/* ── Bottom CTA ─────────────────────────────────────────────────────── */
-.bottom-cta{background:#0a0a0a;text-align:center}
-.bottom-cta .install{margin:2.5rem auto 2rem}
+/* ── Features ────────────────────────────────────── */
+.feat-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:1.5px;
+  background:var(--border);border-radius:16px;overflow:hidden;margin-top:4rem;
+}
+.feat{
+  background:var(--surface);padding:2.25rem 2rem;
+  transition:background .3s;
+}
+.feat:hover{background:#12151c}
+.feat-icon{font-size:1.5rem;margin-bottom:1rem}
+.feat h3{font-size:1rem;font-weight:700;margin-bottom:.4rem;letter-spacing:-.02em}
+.feat p{font-size:.875rem;color:var(--muted);line-height:1.65}
 
-/* ── Scroll reveal ──────────────────────────────────────────────────── */
-.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
-.reveal.visible{opacity:1;transform:none}
+/* ── Comparison ──────────────────────────────────── */
+.comp-table{
+  width:100%;border-collapse:collapse;margin-top:3rem;
+  font-size:.85rem;
+}
+.comp-table th{
+  padding:1rem 1.5rem;text-align:left;
+  border-bottom:1px solid var(--border);
+  font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;
+}
+.comp-table th.hl{color:var(--accent)}
+.comp-table td{
+  padding:1rem 1.5rem;
+  border-bottom:1px solid rgba(28,31,40,.5);
+  color:var(--muted);
+}
+.comp-table tr:last-child td{border:none}
+.comp-table tr:hover td{background:rgba(255,255,255,.01)}
+.comp-table td:first-child{color:var(--text);font-weight:500}
+.comp-table .y{color:var(--accent)}
+.comp-table .n{color:var(--muted2)}
+.comp-table .me td{color:var(--accent) !important;font-weight:700 !important}
+.comp-table .me td:first-child{color:var(--accent) !important}
 
-/* ── Footer ────────────────────────────────────────────────────────── */
+/* ── Pricing ─────────────────────────────────────── */
+.price-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;
+  max-width:1100px;margin-top:4rem;
+}
+.price-card{
+  border:1px solid var(--border);border-radius:16px;
+  padding:2.5rem 2rem;transition:all .3s;
+}
+.price-card:hover{transform:translateY(-3px)}
+.price-card.pro{
+  border-color:var(--accent);
+  background:linear-gradient(160deg,rgba(57,232,168,.04) 0%,var(--surface) 60%);
+  box-shadow:0 0 50px rgba(57,232,168,.07);
+}
+.price-tier{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:1rem;
+}
+.price-card.pro .price-tier{color:var(--accent)}
+.price-amt{
+  font-size:3.2rem;font-weight:800;letter-spacing:-.05em;
+  line-height:1;margin-bottom:.25rem;
+}
+.price-period{
+  font-family:var(--mono);font-size:.78rem;color:var(--muted);
+  margin-bottom:2rem;
+}
+.price-items{list-style:none;margin-bottom:2rem}
+.price-items li{
+  font-size:.875rem;padding:.55rem 0;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;gap:.65rem;color:var(--muted);
+}
+.price-items li:last-child{border:none}
+.price-items li.on{color:var(--text)}
+.chk{color:var(--accent);flex-shrink:0}.no{color:var(--border2);flex-shrink:0}
+.btn-price{
+  display:block;text-align:center;padding:.85rem;border-radius:8px;
+  font-size:.875rem;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);color:var(--muted);
+  transition:all .25s;font-family:var(--font);
+}
+.btn-price:hover{opacity:1;border-color:var(--muted2);color:var(--text)}
+.btn-price.pro{
+  background:var(--accent);color:#000;border-color:var(--accent);
+}
+.btn-price.pro:hover{opacity:1;box-shadow:0 8px 30px var(--accent-glow);transform:translateY(-1px)}
+
+/* ── CTA strip ───────────────────────────────────── */
+.cta-strip{
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  padding:5rem 2rem;text-align:center;
+}
+.cta-strip h2{
+  font-size:clamp(2rem,5vw,3.5rem);font-weight:800;
+  letter-spacing:-.04em;margin-bottom:1rem;
+}
+.cta-strip h2 .serif-word{font-family:var(--serif);font-style:italic;font-weight:400}
+.cta-strip p{font-size:.95rem;color:var(--muted);max-width:440px;margin:0 auto 2rem}
+
+/* ── Footer ──────────────────────────────────────── */
 footer{
-  padding:3rem 2rem;text-align:center;
-  border-top:1px solid rgba(255,255,255,.06);
+  max-width:var(--max);margin:0 auto;
+  padding:2.5rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:1.5rem;
 }
-footer p{color:var(--muted);font-size:.85rem}
-footer a{color:var(--muted)}
-footer a:hover{color:var(--fg)}
+.foot-logo{font-family:var(--mono);font-size:.9rem;color:var(--accent)}
+.foot-logo em{color:var(--muted);font-style:normal}
+.foot-links{display:flex;gap:1.75rem;list-style:none}
+.foot-links a{font-size:.82rem;color:var(--muted);transition:color .2s}
+.foot-links a:hover{color:var(--text)}
+.foot-copy{font-family:var(--mono);font-size:.75rem;color:var(--muted2)}
 
-/* ── Responsive ────────────────────────────────────────────────────── */
+/* ── Animations ──────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+.reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}.reveal.d3{transition-delay:.24s}
+
+/* ── Responsive ──────────────────────────────────── */
 @media(max-width:900px){
-  .steps-grid,.features-grid,.pricing-grid,.use-cases-grid{grid-template-columns:1fr}
-  .demo-pair{grid-template-columns:1fr}
-  .syntax-table{font-size:.8rem}
-  .syntax-table td,.syntax-table th{padding:.5rem .6rem}
-  nav .links{display:none}
+  .steps,.capture-grid,.feat-grid,.ba-grid{grid-template-columns:1fr}
+  .feat-grid{gap:1px}
+  .steps{gap:1px}
+  .price-grid{grid-template-columns:1fr;max-width:100%}
+  .capture-grid{grid-template-columns:1fr}
+  nav .nav-links{display:none}
+  footer{flex-direction:column;align-items:flex-start}
 }
 @media(max-width:600px){
-  .hero h1{font-size:2.5rem}
-  .hero .subtitle{font-size:1.1rem}
-  section{padding:4rem 1.25rem}
-  .install{flex-direction:column;text-align:center;gap:.5rem}
+  section{padding:5rem 1.25rem}
+  .hero{padding:8rem 1.25rem 4rem}
+  .comp-table{font-size:.78rem}
+  .comp-table td,.comp-table th{padding:.75rem}
 }
 </style>
 </head>
 <body>
 
-<!-- ── Nav ──────────────────────────────────────────────────────────── -->
+<!-- Nav -->
 <nav>
-  <div class="inner">
-    <div class="logo">md2cast<span>.dev</span></div>
-    <div class="links">
-      <a href="#how-it-works">How it Works</a>
-      <a href="#syntax">Syntax</a>
-      <a href="#features">Features</a>
-      <a href="#use-cases">Use Cases</a>
-      <a href="#pricing">Pricing</a>
-      <a href="https://github.com/markamo/md2cast">GitHub</a>
-    </div>
+  <div class="nav-inner">
+    <div class="nav-logo">md2cast<em>.dev</em></div>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#capture">Capture types</a></li>
+      <li><a href="#directives">Directives</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="https://github.com/markamo/md2cast" target="_blank">GitHub ↗</a></li>
+      <li><a href="#pricing" class="nav-cta">Get Pro</a></li>
+    </ul>
   </div>
 </nav>
 
-<!-- ── Hero ─────────────────────────────────────────────────────────── -->
-<section class="hero">
-  <div class="badge">Open Source &middot; MIT License</div>
-  <h1>Markdown in.<br><span class="gradient">Screencast out.</span></h1>
-  <p class="subtitle">Write your tutorial in Markdown. Run one command. Get a beautiful screencast you can play, embed, or share as a GIF.</p>
-  <div class="cta">
-    <a href="#pricing" class="btn btn-primary">Get Started</a>
-    <a href="https://github.com/markamo/md2cast" class="btn btn-secondary">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid"></div>
+
+  <div class="badge">
+    <span class="badge-pulse"></span>
+    MIT open source &nbsp;·&nbsp; pipx install md2cast
+  </div>
+
+  <h1>
+    Your docs,<br>
+    <span class="serif-word">alive</span>
+    <span class="accent-word">.</span>
+  </h1>
+
+  <p class="hero-sub">
+    Write <strong>Markdown</strong>. Every code block becomes a
+    <strong>live terminal recording</strong>, browser walkthrough, or GUI demo—
+    regenerated automatically on every push.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://github.com/markamo/md2cast" class="btn btn-primary">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
       Star on GitHub
     </a>
+    <a href="#how" class="btn btn-ghost">See how it works</a>
   </div>
-  <div class="install">
+
+  <div class="install-bar">
     <span class="prompt">$</span>
     <code>pipx install md2cast</code>
-    <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+    <button class="copy-btn" id="copybtn" onclick="doCopy(this)">Copy</button>
   </div>
-  <div class="demo-pair" style="margin-top:3.5rem">
-      <div>
-        <div class="demo-label">tutorial.md</div>
-        <div class="demo-window">
-          <div class="demo-titlebar">
-            <div class="demo-dot red"></div>
-            <div class="demo-dot yellow"></div>
-            <div class="demo-dot green"></div>
-            <span>tutorial.md</span>
-          </div>
-          <div class="md-source" id="md-source">
-            <span class="line md-h" data-step="0"># Getting Started</span>
-            <span class="line" data-step="0">&nbsp;</span>
-            <span class="line md-text" data-step="1">Install the package from npm.</span>
-            <span class="line" data-step="1">&nbsp;</span>
-            <span class="line md-fence" data-step="2">```bash</span>
-            <span class="line md-code" data-step="2">npm install my-awesome-tool</span>
-            <span class="line md-fence" data-step="2">```</span>
-            <span class="line" data-step="2">&nbsp;</span>
-            <span class="line md-text" data-step="3">Verify it works:</span>
-            <span class="line" data-step="3">&nbsp;</span>
-            <span class="line md-fence" data-step="4">```bash</span>
-            <span class="line md-code" data-step="4">my-tool --version</span>
-            <span class="line md-fence" data-step="4">```</span>
-            <span class="line" data-step="4">&nbsp;</span>
-            <span class="line md-quote" data-step="5">&gt; Tip: Use --global for system-wide.</span>
-          </div>
+
+  <!-- Animated terminal -->
+  <div class="term-wrap">
+    <div class="term">
+      <div class="term-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="term-title">bash — md2cast</span>
+      </div>
+      <div class="term-body" id="term-body">
+        <div><span class="t-p">$</span> <span class="t-c" id="tc"></span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- How it works -->
+<section id="how">
+  <div class="inner">
+    <div class="s-label reveal">How it works</div>
+    <h2 class="s-title reveal">Write Markdown.<br>Ship <span class="serif-word">living</span> docs.</h2>
+    <p class="s-sub reveal">No screencasting software. No retakes. No stale recordings. Your docs rebuild themselves.</p>
+
+    <div class="steps">
+      <div class="step reveal d1">
+        <div class="step-n">01</div>
+        <h3>Annotate your Markdown</h3>
+        <p>Add HTML comment directives to code blocks. Or skip them entirely — sensible defaults handle most cases.</p>
+        <div class="step-code">
+          <span class="c"># My Setup Guide</span><br>
+          <br>
+          Install the agent framework:<br>
+          <br>
+          <span class="c">&lt;!-- exec --&gt;</span><br>
+          &#96;&#96;&#96;bash<br>
+          pip install envpod<br>
+          &#96;&#96;&#96;<br>
+          <br>
+          <span class="c">&lt;!-- browser --&gt;</span><br>
+          <span class="c">&lt;!-- navigate https://app.envpod.io --&gt;</span>
         </div>
       </div>
-      <div>
-        <div class="demo-label">tutorial.cast <span style="color:var(--green);font-size:.65rem">&bull; playing</span></div>
-        <div class="demo-window">
-          <div class="demo-titlebar">
-            <div class="demo-dot red"></div>
-            <div class="demo-dot yellow"></div>
-            <div class="demo-dot green"></div>
-            <span>asciinema player</span>
-          </div>
-          <div class="demo-body" id="cast-output"></div>
+
+      <div class="step reveal d2">
+        <div class="step-n">02</div>
+        <h3>Run one command</h3>
+        <p>md2cast executes real commands, captures terminal output, drives your browser via Playwright, and records everything.</p>
+        <div class="step-code">
+          <span class="p">$</span> md2cast docs/ <span class="f">--render-html</span><br>
+          <br>
+          <span class="c"># or generate GIFs to embed in README</span><br>
+          <span class="p">$</span> md2cast README.md <span class="f">--gif</span><br>
+          <br>
+          <span class="c"># or publish to the web</span><br>
+          <span class="p">$</span> md2cast docs/ <span class="f">--publish</span>
+        </div>
+      </div>
+
+      <div class="step reveal d3">
+        <div class="step-n">03</div>
+        <h3>Ship. Push. Repeat.</h3>
+        <p>Get a static HTML docs site with embedded players. Wire to CI and every merge regenerates every recording automatically.</p>
+        <div class="step-code">
+          <span class="c"># .github/workflows/docs.yml</span><br>
+          - run: md2cast docs/ <span class="f">--render-html</span><br>
+          <br>
+          <span class="c"># screencasts always match</span><br>
+          <span class="c"># your latest code. always.</span>
         </div>
       </div>
     </div>
+  </div>
 </section>
 
-<!-- ── How it works ────────────────────────────────────────────────── -->
-<section class="how-it-works" id="how-it-works">
+<div class="divider"></div>
+
+<!-- Before / After -->
+<section>
   <div class="inner">
-    <div class="section-label reveal">How it Works</div>
-    <div class="section-title reveal">Three steps. Zero dependencies.</div>
-    <p class="section-subtitle">Write Markdown like you already do. md2cast handles the rest.</p>
-    <div class="steps-grid">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Write Markdown</h3>
-        <p>Use standard Markdown with code blocks. No special syntax required.</p>
-        <pre><span class="comment"># My Tutorial</span>
+    <div class="s-label reveal">Before &amp; After</div>
+    <h2 class="s-title reveal">Same source.<br><span class="serif-word">Completely different</span> experience.</h2>
+    <p class="s-sub reveal">Your Markdown doesn't change. md2cast transforms how readers experience every code block.</p>
 
-Run this command:
-
-<span class="prompt">```bash</span>
-echo "Hello, world!"
-<span class="prompt">```</span></pre>
+    <div class="ba-grid">
+      <div class="ba-card reveal d1">
+        <div class="ba-label">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          README.md — before
+        </div>
+        <div class="ba-body">
+          <span class="h">## Installation</span><br>
+          <br>
+          Run this to install:<br>
+          <br>
+          &#96;&#96;&#96;bash<br>
+          <span class="kw">pip install</span> envpod<br>
+          &#96;&#96;&#96;<br>
+          <br>
+          <span class="c">// static. nothing happens.</span><br>
+          <span class="c">// user copies, hopes it works,</span><br>
+          <span class="c">// opens terminal, crosses fingers.</span>
+        </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Run md2cast</h3>
-        <p>One command. Generates a .cast file, GIF, or a full HTML page.</p>
-        <pre><span class="prompt">$</span> md2cast tutorial.md
 
-<span class="prompt">$</span> md2cast tutorial.md <span class="flag">--gif</span>
-
-<span class="prompt">$</span> md2cast tutorial.md <span class="flag">--render</span>
-
-<span class="prompt">$</span> md2cast tutorial.md <span class="flag">--render-html</span></pre>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Share Anywhere</h3>
-        <p>Play in terminal, embed in docs, upload to asciinema.org, or convert to GIF.</p>
-        <pre><span class="comment"># Play in terminal</span>
-<span class="prompt">$</span> asciinema play demo.cast
-
-<span class="comment"># Open HTML page</span>
-<span class="prompt">$</span> open demo.html
-
-<span class="comment"># Embed GIF in README</span>
-![demo](assets/demo.gif)</pre>
+      <div class="ba-card reveal d2" style="border-color:var(--accent)">
+        <div class="ba-label">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          docs/index.html — after &nbsp;
+          <span class="live">live</span>
+        </div>
+        <div class="ba-body">
+          <span class="h">## Installation</span><br>
+          <br>
+          Run this to install:<br>
+          <br>
+          <div class="gif-block">
+            <span class="gif-icon">▶</span>
+            <div class="gif-meta">
+              <span class="gif-name">install.gif</span>
+              <span class="gif-size">real output · 4.2s · asciinema player</span>
+            </div>
+          </div>
+          &#96;&#96;&#96;bash<br>
+          <span class="kw">pip install</span> envpod<br>
+          &#96;&#96;&#96;
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Syntax Reference ─────────────────────────────────────────────── -->
-<section class="syntax-ref" id="syntax">
+<div class="divider"></div>
+
+<!-- Capture types -->
+<section id="capture" style="background:var(--bg2)">
   <div class="inner">
-    <div class="section-label reveal">Syntax Reference</div>
-    <div class="section-title reveal">You already know the syntax.</div>
-    <p class="section-subtitle reveal">Standard Markdown maps to screencast visuals. Directives add precision &mdash; without breaking your docs.</p>
+    <div class="s-label reveal">Capture types</div>
+    <h2 class="s-title reveal">Terminal. Browser.<br>GUI. <span class="serif-word">One file.</span></h2>
+    <p class="s-sub reveal">The only tool that generates animated walkthroughs across all three environments from a single Markdown source.</p>
 
-    <div class="syntax-group reveal">
-      <div class="syntax-group-title">Markdown Elements</div>
-      <table class="syntax-table">
-        <thead><tr><th>Markdown</th><th>Screencast Output</th></tr></thead>
-        <tbody>
-          <tr><td><code># Heading</code></td><td class="desc">Title card &mdash; clears screen, draws a box border around the title</td></tr>
-          <tr><td><code>## Heading</code></td><td class="desc">Section divider &mdash; clears screen, shows a banner</td></tr>
-          <tr><td><code>### Heading</code></td><td class="desc">Subsection label &mdash; bold inline text</td></tr>
-          <tr><td><code>Regular text</code></td><td class="desc">Narrated comment &mdash; dimmed <code># text</code> in the terminal</td></tr>
-          <tr><td><code>```bash</code></td><td class="desc">Typed command &mdash; green <code>$</code> prompt, character-by-character typing</td></tr>
-          <tr><td><code>```</code> <span style="color:var(--muted)">(no lang)</span></td><td class="desc">Static output &mdash; displayed all at once, no typing animation</td></tr>
-          <tr><td><code>```yaml</code> <code>```python</code> <code>```json</code></td><td class="desc">Syntax-highlighted static block &mdash; Pygments coloring</td></tr>
-          <tr><td><code>&gt; blockquote</code></td><td class="desc">Highlighted note &mdash; yellow sidebar marker</td></tr>
-          <tr><td><code>---</code></td><td class="desc">Screen clear &mdash; resets the terminal</td></tr>
-        </tbody>
-      </table>
+    <div class="capture-grid">
+      <div class="cap terminal reveal d1">
+        <div class="cap-icon">⌨️</div>
+        <h3>Terminal</h3>
+        <p>Executes real commands and records output. Type delays, custom prompts, syntax highlighting, multiple themes. 9 directives included free.</p>
+        <div class="cap-syntax">
+          <span class="c">&lt;!-- exec --&gt;</span><br>
+          <span class="c">&lt;!-- type-delay 35 --&gt;</span><br>
+          &#96;&#96;&#96;<span class="kw">bash</span><br>
+          <span class="acc">envpod</span> init --zero-trust<br>
+          &#96;&#96;&#96;
+        </div>
+      </div>
+
+      <div class="cap browser reveal d2">
+        <div class="cap-icon">🌐</div>
+        <h3>Browser <span class="pro-tag">Pro</span></h3>
+        <p>Full Playwright integration. Navigate, click, type, screenshot — all described in Markdown comments. Outputs video or GIF of real browser interactions.</p>
+        <div class="cap-syntax">
+          <span class="c">&lt;!-- browser --&gt;</span><br>
+          <span class="c">&lt;!-- navigate <span class="str">https://app.io</span> --&gt;</span><br>
+          <span class="c">&lt;!-- click <span class="str">#get-started</span> --&gt;</span><br>
+          <span class="c">&lt;!-- screenshot --&gt;</span>
+        </div>
+      </div>
+
+      <div class="cap gui reveal d3">
+        <div class="cap-icon">🖥️</div>
+        <h3>GUI Desktop <span class="pro-tag">Pro</span></h3>
+        <p>Desktop automation via xdotool/ydotool. Capture real app interactions — window focus, mouse, forms — without recording manually.</p>
+        <div class="cap-syntax">
+          <span class="c">&lt;!-- gui --&gt;</span><br>
+          <span class="c">&lt;!-- app <span class="str">envpod-desktop</span> --&gt;</span><br>
+          <span class="c">&lt;!-- click <span class="str">File &gt; New Agent</span> --&gt;</span><br>
+          <span class="c">&lt;!-- screenshot --&gt;</span>
+        </div>
+      </div>
     </div>
 
-    <div class="syntax-group reveal">
-      <div class="syntax-group-title">Directives</div>
-      <p class="section-subtitle" style="margin-top:0;margin-bottom:1.5rem">HTML comments that control behavior per-block. They don&rsquo;t render in normal Markdown viewers.</p>
-      <table class="syntax-table">
-        <thead><tr><th>Directive</th><th>Effect</th></tr></thead>
-        <tbody>
-          <tr>
-            <td><code>&lt;!-- exec --&gt;</code></td>
-            <td class="desc">Execute the next bash block and capture real output<span class="example">Runs the command in a subprocess, records stdout/stderr</span></td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- no-exec --&gt;</code></td>
-            <td class="desc">Skip execution for the next block, even with <code>--execute</code> flag</td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- pause 3 --&gt;</code></td>
-            <td class="desc">Pause for N seconds before the next element<span class="example">Any number: 0.5, 1, 3, 10</span></td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- type-delay 0.01 --&gt;</code></td>
-            <td class="desc">Override typing speed for the next block<span class="example">Lower = faster. Default: 0.03</span></td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- prompt # --&gt;</code></td>
-            <td class="desc">Change the prompt character for the next block<span class="example"><code>#</code> for root, <code>&gt;&gt;&gt;</code> for Python, <code>mysql&gt;</code> for databases</span></td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- output --&gt;</code></td>
-            <td class="desc">Force a <code>```bash</code> block to display as static output instead of typed commands</td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- view-exec --&gt;</code></td>
-            <td class="desc">Show commands as a preview first, then execute each one with real output</td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- skip --&gt;</code></td>
-            <td class="desc">Skip the next block entirely &mdash; it won&rsquo;t appear in the screencast</td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- clear --&gt;</code></td>
-            <td class="desc">Clear the screen (same as <code>---</code>)</td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- browser --&gt;</code> <span class="pro-badge">Pro</span></td>
-            <td class="desc">Next code block contains browser automation steps (Playwright)<span class="example">open, click, type, wait, screenshot, scroll, video</span></td>
-          </tr>
-          <tr>
-            <td><code>&lt;!-- gui --&gt;</code> <span class="pro-badge">Pro</span></td>
-            <td class="desc">Next code block contains desktop GUI automation steps<span class="example">launch, focus, click, type, key, screenshot</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="syntax-group reveal">
-      <div class="syntax-group-title">CLI Flags</div>
-      <table class="syntax-table">
-        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>--gif</code></td><td class="desc">Also generate a GIF via agg</td></tr>
-          <tr><td><code>--execute</code></td><td class="desc">Run all bash blocks and capture real output</td></tr>
-          <tr><td><code>--render</code></td><td class="desc">Generate new Markdown with GIFs embedded above each code block</td></tr>
-          <tr><td><code>--render-html</code></td><td class="desc">Generate an HTML page with interactive asciinema players</td></tr>
-          <tr><td><code>--embed</code></td><td class="desc">Self-contained HTML &mdash; cast data inline, no external files</td></tr>
-          <tr><td><code>--split</code></td><td class="desc">One <code>.cast</code> per <code>##</code> section</td></tr>
-          <tr><td><code>--section N</code></td><td class="desc">Render only section N</td></tr>
-          <tr><td><code>--list</code></td><td class="desc">List all sections in the document</td></tr>
-          <tr><td><code>--cols N</code></td><td class="desc">Terminal width (default: 110)</td></tr>
-          <tr><td><code>--rows N</code></td><td class="desc">Terminal height (default: auto-sized to content)</td></tr>
-          <tr><td><code>--theme FILE</code></td><td class="desc">Custom theme JSON for colors, timing, and player settings</td></tr>
-          <tr><td><code>--init-theme</code></td><td class="desc">Print a default theme JSON to stdout</td></tr>
-          <tr><td><code>-o FILE</code></td><td class="desc">Custom output path</td></tr>
-          <tr><td><code>-C DIR</code></td><td class="desc">Working directory for executed commands</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-  </div>
-</section>
-
-<!-- ── Features ────────────────────────────────────────────────────── -->
-<section class="features" id="features">
-  <div class="inner">
-    <div class="section-label reveal">Features</div>
-    <div class="section-title reveal">Everything you need.<br>Nothing you don't.</div>
-    <div class="features-grid">
-      <div class="feature">
-        <div class="feature-icon">&#9881;</div>
-        <h3>Execute Mode</h3>
-        <p>Actually run bash commands and capture real output. No more fake screenshots.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127912;</div>
-        <h3>Themes</h3>
-        <p>Custom colors, fonts, timing, and terminal size via JSON config. Auto-discovers theme files.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128248;</div>
-        <h3>Render Mode</h3>
-        <p>Generate new Markdown with GIF screencasts embedded above each code block. Docs that move.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127760;</div>
-        <h3>HTML Export</h3>
-        <p>Self-contained HTML page with interactive asciinema players. One file, zero server needed.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#9997;</div>
-        <h3>Directives</h3>
-        <p>Fine-tune with HTML comments. Pause, skip, change prompt, control typing speed &mdash; per block.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127752;</div>
-        <h3>Syntax Highlighting</h3>
-        <p>Python, YAML, JSON, and more &mdash; automatically colored with Pygments. Any theme you want.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#9986;</div>
-        <h3>Split Mode</h3>
-        <p>One .cast per section. Perfect for multi-step tutorials with individual playback.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128736;</div>
-        <h3>Zero Dependencies</h3>
-        <p>Python 3.6+. No npm, no Docker, no build step. Single file, runs anywhere.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128200;</div>
-        <h3>Smart Sizing</h3>
-        <p>Auto-sizes terminal rows to content. Short blocks stay compact, no wasted space.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127760;</div>
-        <h3>Browser Capture <span class="pro-badge">Pro</span></h3>
-        <p>Full Playwright integration. Navigate, click, type, screenshot &mdash; described in Markdown comments.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128421;</div>
-        <h3>GUI Automation <span class="pro-badge">Pro</span></h3>
-        <p>Desktop app walkthroughs via xdotool. Capture real GUI interactions without manual recording.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#9889;</div>
-        <h3>Always Current</h3>
-        <p>Wire to CI. Every merge rebuilds every recording with real output from your latest code. Never stale.</p>
+    <div style="margin-top:2rem;padding:1.5rem 2rem;border:1px solid rgba(157,125,255,.2);border-radius:12px;background:var(--purple-dim);display:flex;align-items:flex-start;gap:1rem;" class="reveal">
+      <span style="font-size:1.4rem;flex-shrink:0">🔀</span>
+      <div>
+        <div style="font-weight:700;margin-bottom:.35rem;font-size:.95rem">Mixed workflows <span class="pro-tag">Pro</span></div>
+        <p style="font-size:.875rem;color:var(--muted);line-height:1.65">Chain <strong style="color:var(--text)">terminal → browser → GUI</strong> in one Markdown document. Document an entire user journey — install, configure, use the web dashboard, open the desktop app — with a single source of truth that rebuilds on every push.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Use Cases ──────────────────────────────────────────────────── -->
-<section class="use-cases" id="use-cases">
+<div class="divider"></div>
+
+<!-- Directives -->
+<section id="directives">
   <div class="inner">
-    <div class="section-label reveal">Use Cases</div>
-    <div class="section-title reveal">Built for people who ship.</div>
-    <p class="section-subtitle reveal">From AI agent frameworks to open-source maintainers &mdash; if your docs have code, md2cast makes them come alive.</p>
-    <div class="use-cases-grid">
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#129302;</div>
+    <div class="s-label reveal">Directives</div>
+    <h2 class="s-title reveal">You already know<br><span class="serif-word">the syntax.</span></h2>
+    <p class="s-sub reveal">HTML comments in your Markdown. Every directive is optional — remove them all and md2cast still works.</p>
+
+    <table class="dir-table reveal" style="margin-top:3rem">
+      <thead>
+        <tr>
+          <th>Directive</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>&lt;!-- exec --&gt;</td><td>Execute the command block for real and capture actual output</td></tr>
+        <tr><td>&lt;!-- no-exec --&gt;</td><td>Skip execution, just type the block for demonstration</td></tr>
+        <tr><td>&lt;!-- type-delay N --&gt;</td><td>Set typing speed in ms per character (default 35)</td></tr>
+        <tr><td>&lt;!-- prompt "text" --&gt;</td><td>Override the terminal prompt for the next block</td></tr>
+        <tr><td>&lt;!-- output "text" --&gt;</td><td>Inject a static output line after the command</td></tr>
+        <tr><td>&lt;!-- view-exec --&gt;</td><td>Show the command being typed, then execute for real output</td></tr>
+        <tr><td>&lt;!-- clear --&gt;</td><td>Clear the terminal screen at this point</td></tr>
+        <tr><td>&lt;!-- skip --&gt;</td><td>Exclude this block from the screencast entirely</td></tr>
+        <tr><td>&lt;!-- pause N --&gt;</td><td>Hold on the current frame for N seconds</td></tr>
+        <tr><td>&lt;!-- browser --&gt;</td><td>Switch to Playwright browser capture mode (Pro)</td></tr>
+        <tr><td>&lt;!-- gui --&gt;</td><td>Switch to desktop GUI capture mode (Pro)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:3rem;font-size:.95rem;font-weight:700;letter-spacing:-.02em" class="reveal">CLI flags</h3>
+    <table class="dir-table reveal" style="margin-top:1rem">
+      <thead>
+        <tr>
+          <th>Flag</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>--gif</td><td>Also generate a GIF via agg</td></tr>
+        <tr><td>--execute</td><td>Run all bash blocks and capture real output</td></tr>
+        <tr><td>--render</td><td>Generate Markdown with GIFs embedded above each code block</td></tr>
+        <tr><td>--render-html</td><td>Generate HTML page with interactive asciinema players</td></tr>
+        <tr><td>--embed</td><td>Self-contained HTML — cast data inline, no external files</td></tr>
+        <tr><td>--split</td><td>One .cast per ## section</td></tr>
+        <tr><td>--section N</td><td>Render only section N</td></tr>
+        <tr><td>--list</td><td>List all sections in the document</td></tr>
+        <tr><td>--cols N</td><td>Terminal width (default: 110)</td></tr>
+        <tr><td>--rows N</td><td>Terminal height (auto-sized to content)</td></tr>
+        <tr><td>--theme FILE</td><td>Custom theme JSON for colors, timing, player settings</td></tr>
+        <tr><td>--init-theme</td><td>Print a default theme JSON to stdout</td></tr>
+        <tr><td>-o FILE</td><td>Custom output path</td></tr>
+        <tr><td>-C DIR</td><td>Working directory for executed commands</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Features -->
+<section id="features" style="background:var(--bg2)">
+  <div class="inner">
+    <div class="s-label reveal">Features</div>
+    <h2 class="s-title reveal">Everything you need.<br><span class="serif-word">Nothing you don't.</span></h2>
+
+    <div class="feat-grid">
+      <div class="feat reveal">
+        <div class="feat-icon">▶️</div>
+        <h3>Real execution</h3>
+        <p>Run bash commands for real and record actual output. No fake screenshots, no manually crafted responses. What you see is what runs.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="feat-icon">🎨</div>
+        <h3>Themes &amp; syntax highlighting</h3>
+        <p>Custom colors, fonts, and terminal sizes via JSON config. Python, YAML, JSON, and more auto-highlighted with Pygments. Any Pygments theme.</p>
+      </div>
+      <div class="feat reveal d2">
+        <div class="feat-icon">📄</div>
+        <h3>HTML docs generation</h3>
+        <p>--render-html builds a complete static docs site with embedded asciinema players, syntax highlighting, and responsive layout. Zero server needed.</p>
+      </div>
+      <div class="feat reveal d3">
+        <div class="feat-icon">✂️</div>
+        <h3>Split mode</h3>
+        <p>--split generates one .cast per section. Perfect for multi-step tutorials where you want individual playback per chapter.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">🖼️</div>
+        <h3>GIF &amp; video export</h3>
+        <p>--gif converts any cast to an embeddable GIF. Video-to-GIF via ffmpeg included in Pro. Drop recordings into READMEs, Notion, anywhere.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="feat-icon">🔁</div>
+        <h3>Always current</h3>
+        <p>Wire md2cast to your CI. Every merge rebuilds every recording with real output from your latest code. Docs never go stale again.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<div class="divider"></div>
+
+<!-- Use Cases -->
+<section>
+  <div class="inner">
+    <div class="s-label reveal">Use cases</div>
+    <h2 class="s-title reveal">Built for people<br>who <span class="serif-word">ship.</span></h2>
+
+    <div class="capture-grid" style="margin-top:3rem">
+      <div class="cap reveal d1" style="--cap-color:var(--accent)">
+        <div class="cap-icon">🤖</div>
         <h3>AI agent frameworks</h3>
-        <p>Show your agent running end-to-end in docs. Every framework needs "watch it work" moments. md2cast makes them automatic.</p>
+        <p>Show your agent running end-to-end. Every framework needs "watch it work" moments. md2cast makes them automatic.</p>
       </div>
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#128300;</div>
-        <h3>Scientific tools</h3>
-        <p>Reproducible workflows with visual proof. Bioinformatics pipelines, ML experiments &mdash; documented and verifiable.</p>
-      </div>
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#128736;</div>
+      <div class="cap reveal d2" style="--cap-color:var(--purple)">
+        <div class="cap-icon">🛠️</div>
         <h3>OSS maintainers</h3>
-        <p>Stop losing users at the README. Turn your install guide into a live demo. Generated from the same source you already maintain.</p>
+        <p>Stop losing users at the README. Turn your install guide into a live demo. Same source you already maintain.</p>
       </div>
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#128640;</div>
+      <div class="cap reveal d3" style="--cap-color:var(--amber)">
+        <div class="cap-icon">🚀</div>
         <h3>DevRel teams</h3>
-        <p>Replace Loom recordings that go stale. Your demo regenerates on every release. Ship it once, maintain it never.</p>
+        <p>Replace Loom recordings that go stale. Your demo regenerates on every release. Ship once, maintain never.</p>
       </div>
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#128188;</div>
+      <div class="cap reveal d1" style="--cap-color:var(--accent)">
+        <div class="cap-icon">🔬</div>
+        <h3>Scientific tools</h3>
+        <p>Reproducible workflows with visual proof. Pipelines, ML experiments — documented and verifiable.</p>
+      </div>
+      <div class="cap reveal d2" style="--cap-color:var(--purple)">
+        <div class="cap-icon">💼</div>
         <h3>Sales engineering</h3>
-        <p>Product walkthroughs that are always accurate. Browser and GUI capture means your demo matches the latest version.</p>
+        <p>Product walkthroughs always accurate. Browser and GUI capture means your demo matches the latest version.</p>
       </div>
-      <div class="use-case reveal">
-        <div class="use-case-icon">&#128218;</div>
+      <div class="cap reveal d3" style="--cap-color:var(--amber)">
+        <div class="cap-icon">📚</div>
         <h3>Developer education</h3>
-        <p>Tutorials that run themselves. Every code example is a live recording. Learners see exactly what happens before they type.</p>
+        <p>Tutorials that run themselves. Every code example is a live recording. Learners see exactly what happens.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Comparison ──────────────────────────────────────────────────── -->
-<section class="comparison">
+<div class="divider"></div>
+
+<!-- Comparison -->
+<section>
   <div class="inner">
-    <div class="section-label reveal">Comparison</div>
-    <div class="section-title reveal">Everyone does docs or screencasts.</div>
-    <p class="section-subtitle reveal">md2cast is the only tool that connects the two from a single source.</p>
-    <div class="reveal" style="overflow-x:auto">
-      <table class="compare-table">
+    <div class="s-label reveal">Comparison</div>
+    <h2 class="s-title reveal">Everyone does docs<br><span class="serif-word">or</span> screencasts.</h2>
+    <p class="s-sub reveal">md2cast is the only tool that connects both from a single Markdown source with automatic rebuild.</p>
+
+    <div style="overflow-x:auto" class="reveal">
+      <table class="comp-table">
         <thead>
           <tr>
             <th>Tool</th>
             <th>Writes docs</th>
             <th>Animated code</th>
+            <th>Browser capture</th>
             <th>Auto-rebuild</th>
             <th class="hl">Single source</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>GitBook</td><td class="yes">&#10003;</td><td class="no">&mdash;</td><td class="yes">&#10003;</td><td class="no">&mdash;</td></tr>
-          <tr><td>Mintlify</td><td class="yes">&#10003;</td><td class="no">&mdash;</td><td class="yes">&#10003;</td><td class="no">&mdash;</td></tr>
-          <tr><td>VHS</td><td class="no">&mdash;</td><td class="yes">&#10003;</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
-          <tr><td>Asciinema</td><td class="no">&mdash;</td><td class="yes">&#10003;</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
-          <tr><td>Loom / Arcade</td><td class="no">&mdash;</td><td class="yes">&#10003;</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
-          <tr class="md2cast-row"><td>md2cast</td><td class="hl">&#10003;</td><td class="hl">&#10003;</td><td class="hl">&#10003;</td><td class="hl">&#10003;</td></tr>
+          <tr><td>GitBook</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+          <tr><td>Mintlify</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+          <tr><td>ReadMe</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+          <tr><td>VHS</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><td>Asciinema</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><td>Loom / Arcade</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr class="me">
+            <td>md2cast</td>
+            <td class="y">✓</td>
+            <td class="y">✓</td>
+            <td class="y">✓</td>
+            <td class="y">✓</td>
+            <td class="y">✓</td>
+          </tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
 
-<!-- ── Pricing ─────────────────────────────────────────────────────── -->
-<section class="pricing" id="pricing">
+<div class="divider"></div>
+
+<!-- Pricing -->
+<section id="pricing">
   <div class="inner">
-    <div class="section-label reveal">Pricing</div>
-    <div class="section-title reveal">Start free. Scale when you need to.</div>
-    <p class="section-subtitle">The free tier covers most documentation needs. Pro removes limits and adds automation.</p>
-    <div class="pricing-grid">
-      <div class="price-card">
-        <div class="tier">Free</div>
-        <div class="price">$0<span> / forever</span></div>
-        <p class="desc">Everything you need for docs and tutorials.</p>
-        <ul>
-          <li>All markdown directives</li>
-          <li>Cast, GIF, HTML, and Render output</li>
-          <li>Custom themes and syntax highlighting</li>
-          <li>Execute mode (real command output)</li>
-          <li>Up to 10 sections / 15 code blocks</li>
-          <li>md2cast watermark on GIFs</li>
+    <div class="s-label reveal">Pricing</div>
+    <h2 class="s-title reveal">Start free.<br><span class="serif-word">Go Pro</span> when ready.</h2>
+    <p class="s-sub reveal">Free tier is genuinely useful — not a stripped-down teaser. Pro unlocks browser, GUI, and unlimited scale.</p>
+
+    <div class="price-grid">
+      <div class="price-card reveal">
+        <div class="price-tier">Free</div>
+        <div class="price-amt">$0</div>
+        <div class="price-period">MIT licensed · forever</div>
+        <ul class="price-items">
+          <li class="on"><span class="chk">✓</span> All 9 terminal directives</li>
+          <li class="on"><span class="chk">✓</span> Real command execution</li>
+          <li class="on"><span class="chk">✓</span> --gif, --render, --render-html</li>
+          <li class="on"><span class="chk">✓</span> Themes &amp; syntax highlighting</li>
+          <li class="on"><span class="chk">✓</span> Up to 15 code blocks</li>
+          <li class="on"><span class="chk">✓</span> Up to 10 sections (--split)</li>
+          <li><span class="no">—</span> Small md2cast watermark on GIFs</li>
+          <li><span class="no">—</span> Browser capture (Playwright)</li>
+          <li><span class="no">—</span> GUI &amp; desktop automation</li>
+          <li><span class="no">—</span> Mixed workflows</li>
         </ul>
-        <a href="https://github.com/markamo/md2cast" class="btn btn-secondary">Get Started Free</a>
+        <a href="https://github.com/markamo/md2cast" class="btn-price">Get started free →</a>
       </div>
-      <div class="price-card featured">
-        <div class="tier">Pro</div>
-        <div class="price">$12<span> / month</span></div>
-        <p class="desc">For teams shipping polished, professional docs.</p>
-        <ul>
-          <li>Everything in Free</li>
-          <li>Unlimited sections and blocks</li>
-          <li>No watermark on GIFs</li>
-          <li>Browser capture (Playwright)</li>
-          <li>GUI desktop capture</li>
-          <li>AI enhancement (coming soon)</li>
-          <li>Priority support</li>
+
+      <div class="price-card pro reveal d1">
+        <div class="price-tier">Pro</div>
+        <div class="price-amt" id="price-amt">$12</div>
+        <div class="price-period" id="price-period">per month · cancel anytime</div>
+        <ul class="price-items">
+          <li class="on"><span class="chk">✓</span> Everything in Free</li>
+          <li class="on"><span class="chk">✓</span> Unlimited code blocks</li>
+          <li class="on"><span class="chk">✓</span> Unlimited sections</li>
+          <li class="on"><span class="chk">✓</span> No watermark on GIFs</li>
+          <li class="on"><span class="chk">✓</span> Browser capture (Playwright)</li>
+          <li class="on"><span class="chk">✓</span> GUI desktop automation</li>
+          <li class="on"><span class="chk">✓</span> Mixed CLI → browser → GUI</li>
+          <li class="on"><span class="chk">✓</span> Video-to-GIF (ffmpeg)</li>
+          <li class="on"><span class="chk">✓</span> AI enhance (coming soon)</li>
         </ul>
-        <a href="#" class="btn btn-primary">Coming Soon</a>
+        <a href="#" class="btn-price pro">Get Pro →</a>
       </div>
-      <div class="price-card">
-        <div class="tier">Team</div>
-        <div class="price">$25<span> / user / month</span></div>
-        <p class="desc">For organizations with shared documentation.</p>
-        <ul>
-          <li>Everything in Pro</li>
-          <li>Shared theme library</li>
-          <li>CI/CD integration (GitHub Action)</li>
-          <li>Private cast hosting</li>
-          <li>VS Code extension</li>
-          <li>SSO and team management</li>
+
+      <div class="price-card reveal d2">
+        <div class="price-tier">Team</div>
+        <div class="price-amt">$25</div>
+        <div class="price-period">per user / month</div>
+        <ul class="price-items">
+          <li class="on"><span class="chk">✓</span> Everything in Pro</li>
+          <li class="on"><span class="chk">✓</span> Shared theme library</li>
+          <li class="on"><span class="chk">✓</span> CI/CD integration (GitHub Action)</li>
+          <li class="on"><span class="chk">✓</span> Private cast hosting</li>
+          <li class="on"><span class="chk">✓</span> VS Code extension</li>
+          <li class="on"><span class="chk">✓</span> SSO and team management</li>
         </ul>
-        <a href="#" class="btn btn-secondary">Contact Sales</a>
+        <a href="#" class="btn-price">Contact Sales →</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Bottom CTA ──────────────────────────────────────────────────── -->
-<section class="bottom-cta">
-  <div class="inner">
-    <div class="section-label reveal">Get Started</div>
-    <div class="section-title reveal" style="max-width:600px;margin:0 auto .75rem">One command.<br>Living docs.</div>
-    <p class="section-subtitle reveal" style="max-width:480px;margin:0 auto">Install in 30 seconds. Your first screencast in under 2 minutes.</p>
-    <div class="install reveal">
-      <span class="prompt">$</span>
-      <code>pipx install md2cast</code>
-      <button class="copy-btn" onclick="copyInstall2(this)">Copy</button>
-    </div>
-    <div class="reveal" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-      <a href="https://github.com/markamo/md2cast" class="btn btn-primary">View on GitHub</a>
-      <a href="#pricing" class="btn btn-secondary">See Pro features</a>
-    </div>
+<!-- CTA -->
+<div class="cta-strip">
+  <h2 class="reveal">One command.<br><span class="serif-word">Living</span> docs.</h2>
+  <p class="reveal">Install in 30 seconds. Your first screencast in under 2 minutes.</p>
+  <div class="install-bar reveal" style="display:inline-flex">
+    <span class="prompt">$</span>
+    <code>pipx install md2cast</code>
+    <button class="copy-btn" onclick="doCopy(this)">Copy</button>
   </div>
-</section>
+  <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap" class="reveal d1">
+    <a href="https://github.com/markamo/md2cast" class="btn btn-primary" target="_blank">
+      View on GitHub ↗
+    </a>
+    <a href="#pricing" class="btn btn-ghost">See Pro features</a>
+  </div>
+</div>
 
-<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<!-- Footer -->
 <footer>
-  <p>Built by <a href="#">Mark Amo-Boateng, PhD</a> &middot; <a href="https://github.com/markamo/md2cast">GitHub</a> &middot; MIT License</p>
+  <div class="foot-logo">md2cast<em>.dev</em></div>
+  <ul class="foot-links">
+    <li><a href="https://github.com/markamo/md2cast">GitHub</a></li>
+    <li><a href="#">Docs</a></li>
+    <li><a href="#">Changelog</a></li>
+    <li><a href="#">MIT License</a></li>
+  </ul>
+  <div class="foot-copy">Built by Mark Amo-Boateng, PhD &nbsp;·&nbsp; © 2026</div>
 </footer>
 
 <script>
-function copyInstall(btn){
-  navigator.clipboard.writeText('pipx install md2cast').then(function(){
-    btn.textContent='Copied!';btn.classList.add('copied');
-    setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},2000);
+// Copy button
+function doCopy(btn){
+  navigator.clipboard.writeText('pipx install md2cast').then(()=>{
+    btn.textContent='Copied!';btn.classList.add('done');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('done')},2000);
   });
 }
-document.querySelectorAll('nav a[href^="#"]').forEach(function(a){
-  a.addEventListener('click',function(e){
-    e.preventDefault();
-    document.querySelector(this.getAttribute('href')).scrollIntoView({behavior:'smooth'});
+
+// Scroll reveal
+const obs=new IntersectionObserver((entries)=>{
+  entries.forEach((e,i)=>{
+    if(e.isIntersecting){
+      setTimeout(()=>e.target.classList.add('in'),i*60);
+    }
   });
-});
+},{threshold:.1,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 
-// ── Animated demo ────────────────────────────────────────────────────
+// Hero terminal typewriter
 (function(){
-  var output=document.getElementById('cast-output');
-  var source=document.getElementById('md-source');
-  if(!output||!source) return;
-
-  // Cast frames: [step, delay_before_ms, html_lines[]]
-  var frames=[
-    [0, 0, [
-      '<span class="dim">  # ╔════════════════════════════════════════╗</span>',
-      '<span class="dim">  # ║</span><span class="white">       Getting Started              </span><span class="dim">║</span>',
-      '<span class="dim">  # ╚════════════════════════════════════════╝</span>',
-      '&nbsp;'
-    ]],
-    [1, 800, [
-      '<span class="muted">  # Install the package from npm.</span>',
-      '&nbsp;'
-    ]],
-    [2, 600, [
-      '  <span class="green">$</span> <span class="white" id="type1"></span><span class="cursor"></span>'
-    ]],
-    [2.5, 1200, [
-      '  <span class="muted">added 42 packages in 1.2s</span>',
-      '&nbsp;'
-    ]],
-    [3, 800, [
-      '<span class="muted">  # Verify it works:</span>',
-      '&nbsp;'
-    ]],
-    [4, 600, [
-      '  <span class="green">$</span> <span class="white" id="type2"></span><span class="cursor"></span>'
-    ]],
-    [4.5, 1000, [
-      '  <span class="muted">v2.1.0</span>',
-      '&nbsp;'
-    ]],
-    [5, 800, [
-      '<span class="yellow">  ▌ Tip: Use --global for system-wide.</span>',
-      '&nbsp;',
-      '<span style="float:right;padding-right:1rem" class="dim">md2cast</span>'
-    ]]
+  const sequences=[
+    {cmd:'md2cast docs/ --render-html',lines:[
+      {t:400,c:'<span class="t-m">  scanning markdown files...</span>'},
+      {t:600,c:'<span class="t-out">  → 4 files, 12 code blocks found</span>'},
+      {t:400,c:'<span class="t-out">  → executing: pip install envpod</span>'},
+      {t:600,c:'<span class="t-out">  → capturing browser flow (Playwright)</span>'},
+      {t:500,c:'<span class="t-out">  → rendering 12 .cast → .gif</span>'},
+      {t:400,c:'<span class="t-out">  → building html docs</span>'},
+      {t:400,c:'<span class="t-ok">  ✓ done in 8.3s  →  open index.html</span>'},
+    ]},
+    {cmd:'md2cast README.md --gif',lines:[
+      {t:400,c:'<span class="t-out">  → 3 code blocks detected</span>'},
+      {t:500,c:'<span class="t-out">  → generating install.gif</span>'},
+      {t:400,c:'<span class="t-out">  → generating verify.gif</span>'},
+      {t:400,c:'<span class="t-ok">  ✓ done  →  embed in your README</span>'},
+    ]},
+    {cmd:'md2cast tutorial.md --split',lines:[
+      {t:400,c:'<span class="t-out">  → 5 sections found</span>'},
+      {t:400,c:'<span class="t-path">  → section-1-install.cast</span>'},
+      {t:300,c:'<span class="t-path">  → section-2-configure.cast</span>'},
+      {t:300,c:'<span class="t-path">  → section-3-run.cast</span>'},
+      {t:400,c:'<span class="t-ok">  ✓ 5 casts generated</span>'},
+    ]},
   ];
 
-  function typeText(id,text,speed,cb){
-    var el=document.getElementById(id);
-    if(!el){if(cb)cb();return;}
-    var i=0;
-    var iv=setInterval(function(){
-      if(i<text.length){el.textContent+=text[i];i++}
-      else{clearInterval(iv);
-        // Remove cursor after typing done
-        var cur=el.parentElement.querySelector('.cursor');
-        if(cur)cur.remove();
-        if(cb)cb();
-      }
-    },speed);
+  const body=document.getElementById('term-body');
+  const tc=document.getElementById('tc');
+  let si=0;
+
+  function typeCmd(cmd,cb){
+    tc.textContent='';
+    let i=0;
+    const iv=setInterval(()=>{
+      if(i<cmd.length){tc.textContent+=cmd[i];i++}
+      else{clearInterval(iv);if(cb)cb();}
+    },28);
   }
 
-  function highlightSource(step){
-    source.querySelectorAll('[data-step]').forEach(function(el){
-      var s=parseFloat(el.dataset.step);
-      if(s===Math.floor(step)) el.classList.add('md-active');
-      else el.classList.remove('md-active');
-    });
+  function addLine(html){
+    const d=document.createElement('div');
+    d.innerHTML=html;
+    body.insertBefore(d,body.lastElementChild);
+    body.scrollTop=body.scrollHeight;
   }
 
-  var running=false;
-  function playDemo(){
-    if(running)return;
-    running=true;
-    output.innerHTML='';
-    source.querySelectorAll('.md-active').forEach(function(el){el.classList.remove('md-active')});
-    var idx=0;
-
-    function nextFrame(){
-      if(idx>=frames.length){
-        // Pause then restart
-        setTimeout(function(){running=false;playDemo()},4000);
-        return;
-      }
-      var frame=frames[idx];
-      var step=frame[0];
-      var delay=frame[1];
-      var lines=frame[2];
-      idx++;
-
-      setTimeout(function(){
-        highlightSource(step);
-        lines.forEach(function(html){
-          var span=document.createElement('span');
-          span.className='line';
-          span.innerHTML=html;
-          output.appendChild(span);
-        });
-        output.scrollTop=output.scrollHeight;
-
-        // Type commands if present
-        if(step===2){
-          typeText('type1','npm install my-awesome-tool',35,nextFrame);
-        } else if(step===4){
-          typeText('type2','my-tool --version',35,nextFrame);
-        } else {
-          nextFrame();
-        }
-      },delay);
+  function runSeq(seq,done){
+    let li=0;
+    function next(){
+      if(li>=seq.lines.length){setTimeout(done,2000);return;}
+      const l=seq.lines[li++];
+      setTimeout(()=>{addLine(l.c);next();},l.t);
     }
-    nextFrame();
+    next();
   }
 
-  // Auto-play immediately (hero is always visible)
-  playDemo();
-})();
-// ── Scroll reveal ──────────────────────────────────────────────────────
-(function(){
-  var revealEls=document.querySelectorAll('.reveal');
-  var revealObs=new IntersectionObserver(function(entries){
-    entries.forEach(function(entry,i){
-      if(entry.isIntersecting){
-        setTimeout(function(){entry.target.classList.add('visible')},i*60);
-      }
+  function loop(){
+    const seq=sequences[si%sequences.length];si++;
+    // Clear previous output lines (keep first and last child)
+    while(body.children.length>1){body.removeChild(body.firstChild);}
+    typeCmd(seq.cmd,()=>{
+      runSeq(seq,loop);
     });
-  },{threshold:0.1,rootMargin:'0px 0px -40px 0px'});
-  revealEls.forEach(function(el){revealObs.observe(el)});
+  }
+
+  setTimeout(loop,800);
 })();
-
-function copyInstall2(btn){
-  navigator.clipboard.writeText('pipx install md2cast').then(function(){
-    btn.textContent='Copied!';btn.classList.add('copied');
-    setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},2000);
-  });
-}
 </script>
-
 </body>
 </html>
