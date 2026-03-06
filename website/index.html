@@ -419,7 +419,7 @@ footer a:hover{color:var(--fg)}
   </div>
   <div class="install">
     <span class="prompt">$</span>
-    <code>pip install md2cast</code>
+    <code>pipx install md2cast</code>
     <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
   </div>
   <div class="demo-pair" style="margin-top:3.5rem">
@@ -748,7 +748,7 @@ echo "Hello, world!"
     <p class="section-subtitle reveal" style="max-width:480px;margin:0 auto">Install in 30 seconds. Your first screencast in under 2 minutes.</p>
     <div class="install reveal">
       <span class="prompt">$</span>
-      <code>pip install md2cast</code>
+      <code>pipx install md2cast</code>
       <button class="copy-btn" onclick="copyInstall2(this)">Copy</button>
     </div>
     <div class="reveal" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
@@ -765,7 +765,7 @@ echo "Hello, world!"
 
 <script>
 function copyInstall(btn){
-  navigator.clipboard.writeText('pip install md2cast').then(function(){
+  navigator.clipboard.writeText('pipx install md2cast').then(function(){
     btn.textContent='Copied!';btn.classList.add('copied');
     setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},2000);
   });
@@ -903,7 +903,7 @@ document.querySelectorAll('nav a[href^="#"]').forEach(function(a){
 })();
 
 function copyInstall2(btn){
-  navigator.clipboard.writeText('pip install md2cast').then(function(){
+  navigator.clipboard.writeText('pipx install md2cast').then(function(){
     btn.textContent='Copied!';btn.classList.add('copied');
     setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},2000);
   });
