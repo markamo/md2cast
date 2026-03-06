@@ -9,6 +9,7 @@ Write your tutorial in Markdown, run `md2cast`, get a `.cast` file you can play,
 - **Python 3.6+** — md2cast itself has no other dependencies
 - **asciinema** — for playing back `.cast` files ([asciinema.org](https://asciinema.org))
 - **agg** *(optional)* — for converting `.cast` to GIF ([github.com/asciinema/agg](https://github.com/asciinema/agg))
+- **pygments** *(optional)* — for syntax highlighting in code blocks (`pip install pygments`)
 
 ```bash
 # Install asciinema
@@ -149,7 +150,9 @@ md2cast --init-theme > md2cast.json
     "quote": "yellow",
     "error": "red",
     "output": "",
-    "command": ""
+    "command": "",
+    "syntax_highlight": true,
+    "highlight_style": "monokai"
   },
   "timing": {
     "type_delay": 0.03,
@@ -173,6 +176,15 @@ Colors accept multiple formats:
 | 256-color | `"256:208"` | xterm 256-color palette |
 | Raw SGR | `"1;38;5;214"` | Direct SGR parameters |
 | Empty | `""` | No color (terminal default) |
+
+### Syntax highlighting
+
+Code blocks (` ```python `, ` ```yaml `, ` ```json `, etc.) are automatically syntax-highlighted using [Pygments](https://pygments.org/) when installed. Bash commands are also highlighted after typing.
+
+- Enabled by default when pygments is available
+- Disable in theme: `"syntax_highlight": false`
+- Change style: `"highlight_style": "dracula"` (any Pygments style — `monokai`, `solarized-dark`, `nord`, `one-dark`, etc.)
+- List available styles: `python3 -c "from pygments.styles import get_all_styles; print(list(get_all_styles()))"`
 
 ### Auto-discovery
 

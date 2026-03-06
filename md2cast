@@ -50,6 +50,16 @@ import argparse
 import json
 import os
 import re
+
+# Optional syntax highlighting — uses pygments if installed, plain text otherwise
+try:
+    from pygments import highlight as _pygments_highlight
+    from pygments.lexers import get_lexer_by_name, guess_lexer
+    from pygments.formatters import Terminal256Formatter
+    from pygments.util import ClassNotFound
+    _HAS_PYGMENTS = True
+except ImportError:
+    _HAS_PYGMENTS = False
 import subprocess
 import sys
 import time
@@ -126,6 +136,28 @@ def _parse_bg_color(value):
     return ""
 
 
+def highlight_code(code, lang="", style="monokai"):
+    """Syntax-highlight code using pygments if available.
+
+    Returns the code with ANSI escape codes for terminal display.
+    Falls back to plain text if pygments is not installed.
+    """
+    if not _HAS_PYGMENTS or not lang:
+        return code
+
+    try:
+        lexer = get_lexer_by_name(lang)
+    except ClassNotFound:
+        return code
+
+    formatter = Terminal256Formatter(style=style)
+    result = _pygments_highlight(code, lexer, formatter)
+    # pygments adds a trailing newline — strip it to match input
+    if result.endswith("\n") and not code.endswith("\n"):
+        result = result[:-1]
+    return result
+
+
 DEFAULT_THEME = {
     "terminal": {
         "cols": 110,
@@ -152,7 +184,9 @@ DEFAULT_THEME = {
         "quote": "yellow",
         "error": "red",
         "output": "",
-        "command": ""
+        "command": "",
+        "syntax_highlight": True,
+        "highlight_style": "monokai"
     },
     "timing": {
         "type_delay": 0.03,
@@ -198,6 +232,8 @@ class Theme:
         self.error = _parse_color(c.get("error", "red"))
         self.output = _parse_color(c.get("output", ""))
         self.command = _parse_color(c.get("command", ""))
+        self.syntax_highlight = c.get("syntax_highlight", True)
+        self.highlight_style = c.get("highlight_style", "monokai")
         self.nc = "\033[0m"
 
         # Timing
@@ -598,6 +634,15 @@ class Renderer:
             self.cast.type_text(line, delay=type_delay)
             if t.command:
                 self.cast.write(t.nc)
+
+            # Repaint line with syntax highlighting after typing
+            if t.syntax_highlight and _HAS_PYGMENTS:
+                highlighted = highlight_code(line, lang="bash", style=t.highlight_style)
+                if highlighted != line:
+                    # Move cursor to start of command (after prompt), overwrite
+                    prompt_len = len(prompt_char) + 2  # "$ " or "# "
+                    self.cast.write(f"\r{t.prompt}{prompt_char} {t.nc}{highlighted}{t.nc}")
+
             self.cast.pause(t.cmd_pause)
             self.cast.write_line("")
 
@@ -684,16 +729,23 @@ class Renderer:
 
             self.cast.pause(t.output_pause)
 
-    def render_output(self, text):
-        """Show output text (not typed, shown at once)."""
+    def render_output(self, text, lang=""):
+        """Show output text (not typed, shown at once), with optional syntax highlighting."""
         t = self.t
         if not text.strip():
             return
-        for line in text.split("\n"):
-            if t.output:
-                self.cast.write_line(f"{t.output}{line}{t.nc}")
-            else:
+
+        # Apply syntax highlighting if enabled and language is known
+        if t.syntax_highlight and lang:
+            highlighted = highlight_code(text, lang=lang, style=t.highlight_style)
+            for line in highlighted.split("\n"):
                 self.cast.write_line(line)
+        else:
+            for line in text.split("\n"):
+                if t.output:
+                    self.cast.write_line(f"{t.output}{line}{t.nc}")
+                else:
+                    self.cast.write_line(line)
         self.cast.pause(t.output_pause)
 
     def render_blocks(self, blocks):
@@ -726,7 +778,7 @@ class Renderer:
                     self.render_command(block.content, directives=block.directives)
 
             elif block.kind == "output":
-                self.render_output(block.content)
+                self.render_output(block.content, lang=block.lang)
 
             elif block.kind == "quote":
                 if i > 0 and blocks[i - 1].kind == "heading" and blocks[i - 1].level == 1:
