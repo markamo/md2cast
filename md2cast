@@ -228,6 +228,20 @@ DEFAULT_THEME = {
         "text_pause": 0.8,
         "end_pause": 2.0
     },
+    "render": {
+        "background": "#1a1b26",
+        "foreground": "#c0caf5",
+        "accent": "#7aa2f7",
+        "font_family": "Inter, system-ui, sans-serif",
+        "code_font": "JetBrains Mono, Fira Code, Cascadia Code, monospace",
+        "max_width": "900px",
+        "image_max_width": "100%",
+        "image_border_radius": "8px",
+        "image_shadow": True,
+        "video_autoplay": False,
+        "video_controls": True,
+        "video_loop": False
+    },
     "headings": {
         "h1": {
             "style": "box",
@@ -302,11 +316,27 @@ class Theme:
         self.text_pause = tm.get("text_pause", 0.8)
         self.end_pause = tm.get("end_pause", 2.0)
 
-        # Heading formats (Pro)
+        # Heading formats
         h = cfg.get("headings", {})
         self.h1 = h.get("h1", DEFAULT_THEME["headings"]["h1"])
         self.h2 = h.get("h2", DEFAULT_THEME["headings"]["h2"])
         self.h3 = h.get("h3", DEFAULT_THEME["headings"]["h3"])
+
+        # Render (HTML output) config
+        r = cfg.get("render", {})
+        dr = DEFAULT_THEME["render"]
+        self.render_bg = r.get("background", dr["background"])
+        self.render_fg = r.get("foreground", dr["foreground"])
+        self.render_accent = r.get("accent", dr["accent"])
+        self.render_font = r.get("font_family", dr["font_family"])
+        self.render_code_font = r.get("code_font", dr["code_font"])
+        self.render_max_width = r.get("max_width", dr["max_width"])
+        self.render_image_max_width = r.get("image_max_width", dr["image_max_width"])
+        self.render_image_border_radius = r.get("image_border_radius", dr["image_border_radius"])
+        self.render_image_shadow = r.get("image_shadow", dr["image_shadow"])
+        self.render_video_autoplay = r.get("video_autoplay", dr["video_autoplay"])
+        self.render_video_controls = r.get("video_controls", dr["video_controls"])
+        self.render_video_loop = r.get("video_loop", dr["video_loop"])
 
 
 def _deep_merge(base, override):
@@ -541,6 +571,15 @@ def parse_markdown(text):
             i += 1
             continue
 
+        # Image: ![alt](path)
+        img_match = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
+        if img_match:
+            alt = img_match.group(1)
+            src = img_match.group(2)
+            blocks.append(Block("image", src, directives={"alt": alt}))
+            i += 1
+            continue
+
         # Blockquote
         if line.startswith(">"):
             quote_lines = []
@@ -557,7 +596,8 @@ def parse_markdown(text):
             while i < len(lines) and lines[i].strip() and not lines[i].startswith("#") \
                     and not lines[i].startswith("```") and not lines[i].startswith(">") \
                     and not re.match(r'^---+\s*$', lines[i]) \
-                    and not re.match(r'^\s*<!--', lines[i]):
+                    and not re.match(r'^\s*<!--', lines[i]) \
+                    and not re.match(r'^!\[', lines[i]):
                 para_lines.append(lines[i])
                 i += 1
             content = " ".join(para_lines)
@@ -735,6 +775,27 @@ class Renderer:
         for line in lines:
             self.cast.write_line(f"  {t.quote}\u2502 {line}{t.nc}")
         self.cast.pause(t.text_pause + len(lines) * 0.4)
+        self.cast.write_line("")
+
+    def render_image(self, src, alt=""):
+        """Render an image reference as narration (terminal can't display images)."""
+        t = self.t
+        ext = os.path.splitext(src)[1].lower()
+        if ext in (".mp4", ".webm", ".mov", ".avi"):
+            icon = "\u25b6"  # ▶
+            label = "Video"
+        elif ext in (".gif",):
+            icon = "\U0001f3ac"  # 🎬
+            label = "GIF"
+        else:
+            icon = "\U0001f4f7"  # 📷
+            label = "Image"
+        display = alt if alt else os.path.basename(src)
+        self.cast.write_line("")
+        self.cast.write_line(f"  {t.narration}{icon} {label}: {display}{t.nc}")
+        self.cast.write_line(f"  {t.narration}   [{src}]{t.nc}")
+        self.cast.write_line(f"  {t.narration}   (use --render-html to display inline){t.nc}")
+        self.cast.pause(1.5)
         self.cast.write_line("")
 
     def render_command(self, command, directives=None):
@@ -921,6 +982,9 @@ class Renderer:
                     pass
                 else:
                     self.render_quote(block.content)
+
+            elif block.kind == "image":
+                self.render_image(block.content, block.directives.get("alt", ""))
 
             elif block.kind == "hr":
                 self.cast.clear()
@@ -1494,13 +1558,41 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
                 sections_html.append(f'<blockquote><p>{_html_escape(text)}</p></blockquote>')
             elif re.match(r'^---+\s*$', line) or re.match(r'^\*\*\*+\s*$', line):
                 sections_html.append("<hr>")
-            elif line.strip():
-                # Check if it's a list item
-                li_match = re.match(r'^(\s*[-*])\s+(.+)$', line)
-                if li_match:
-                    sections_html.append(f"<li>{_html_escape(strip_md(li_match.group(2)))}</li>")
-                else:
-                    sections_html.append(f"<p>{_html_escape(strip_md(line))}</p>")
+            else:
+                # Image: ![alt](src)
+                img_match = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
+                if img_match:
+                    alt = _html_escape(img_match.group(1))
+                    src = img_match.group(2)
+                    ext = os.path.splitext(src)[1].lower()
+                    if ext in (".mp4", ".webm", ".mov"):
+                        attrs = []
+                        if theme.render_video_controls:
+                            attrs.append("controls")
+                        if theme.render_video_autoplay:
+                            attrs.append("autoplay muted")
+                        if theme.render_video_loop:
+                            attrs.append("loop")
+                        attr_str = " ".join(attrs)
+                        sections_html.append(
+                            f'<div class="media-block">'
+                            f'<video {attr_str} class="media">'
+                            f'<source src="{_html_escape(src)}" type="video/{ext.lstrip(".")}">'
+                            f'</video></div>')
+                    else:
+                        shadow = "box-shadow:0 4px 20px rgba(0,0,0,.3);" if theme.render_image_shadow else ""
+                        sections_html.append(
+                            f'<div class="media-block">'
+                            f'<img src="{_html_escape(src)}" alt="{alt}" class="media" '
+                            f'style="{shadow}">'
+                            f'</div>')
+                elif line.strip():
+                    # Check if it's a list item
+                    li_match = re.match(r'^(\s*[-*])\s+(.+)$', line)
+                    if li_match:
+                        sections_html.append(f"<li>{_html_inline(li_match.group(2))}</li>")
+                    else:
+                        sections_html.append(f"<p>{_html_inline(line)}</p>")
 
         elif event[0] == "skip":
             pass  # skip blocks don't appear in HTML
@@ -1614,8 +1706,32 @@ def _html_escape(text):
                 .replace('"', "&quot;"))
 
 
+def _html_inline(text):
+    """Escape HTML and convert inline Markdown links to <a> tags."""
+    # First escape, then convert [text](url) patterns
+    escaped = _html_escape(strip_md(text))
+    # Re-apply link conversion (strip_md removes **, not links)
+    def link_repl(m):
+        link_text = m.group(1)
+        url = m.group(2)
+        return f'<a href="{url}" style="color:var(--accent)">{link_text}</a>'
+    # Match [text](url) but not ![text](url)
+    result = re.sub(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)', link_repl, text)
+    # Still escape the non-link parts
+    parts = re.split(r'(<a [^>]+>[^<]+</a>)', result)
+    out = []
+    for p in parts:
+        if p.startswith('<a '):
+            out.append(p)
+        else:
+            out.append(_html_escape(strip_md(p)))
+    return ''.join(out)
+
+
 def _html_template(title, body, theme):
     """Generate the full HTML page with embedded asciinema player."""
+    img_radius = theme.render_image_border_radius
+    img_max_w = theme.render_image_max_width
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1625,21 +1741,21 @@ def _html_template(title, body, theme):
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
 <style>
   :root {{
-    --bg: #1a1b26;
-    --fg: #c0caf5;
+    --bg: {theme.render_bg};
+    --fg: {theme.render_fg};
     --muted: #565f89;
-    --accent: #7aa2f7;
+    --accent: {theme.render_accent};
     --border: #292e42;
     --code-bg: #24283b;
     --blockquote-border: #e0af68;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: {theme.font_family or "'Inter', system-ui, sans-serif"};
+    font-family: {theme.render_font};
     background: var(--bg);
     color: var(--fg);
     line-height: 1.7;
-    max-width: 900px;
+    max-width: {theme.render_max_width};
     margin: 0 auto;
     padding: 2rem 1.5rem;
   }}
@@ -1695,9 +1811,18 @@ def _html_template(title, body, theme):
     margin-top: 0.5rem;
   }}
   code {{
-    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-family: {theme.render_code_font};
     font-size: 0.9rem;
     color: var(--fg);
+  }}
+  .media-block {{
+    margin: 1.5rem 0;
+    text-align: center;
+  }}
+  .media {{
+    max-width: {img_max_w};
+    border-radius: {img_radius};
+    border: 1px solid var(--border);
   }}
   .code-copy {{
     position: relative;
