@@ -207,7 +207,7 @@ nav{
 .md-hero{
   padding:1.25rem 1.5rem;
   font-family:var(--mono);font-size:.78rem;line-height:1.85;
-  min-height:440px;max-height:480px;overflow-y:auto;scrollbar-width:none;
+  min-height:440px;max-height:480px;overflow-y:auto;scrollbar-width:none;position:relative;
   color:var(--muted);
 }
 .md-hero .line{display:block;transition:all .3s}
@@ -1265,7 +1265,7 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
       '&nbsp;'
     ]},
     {step:6, delay:600, lines:[
-      '<span class="t-m">  # ══ Configuration ══════════════════════</span>',
+      '<div style="text-align:center"><span class="t-m">══ Configuration ══</span></div>',
       '&nbsp;'
     ]},
     {step:7, delay:800, lines:[
@@ -1311,7 +1311,11 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
       if(s===Math.floor(step)){el.classList.add('md-active');lastActive=el;}
       else el.classList.remove('md-active');
     });
-    if(lastActive) source.scrollTop=lastActive.offsetTop-source.offsetTop;
+    // Scroll within container only — no page scroll
+    if(lastActive){
+      var top=lastActive.offsetTop-source.offsetTop-60;
+      source.scrollTo({top:Math.max(0,top),behavior:'smooth'});
+    }
   }
 
   function addLine(html){
