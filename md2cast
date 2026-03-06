@@ -43,6 +43,7 @@ Directives (HTML comments — invisible in rendered Markdown):
   <!-- prompt # -->       → change prompt character for the next block (e.g., root shell)
   <!-- output -->         → force next ```bash block to display as static output
   <!-- view-exec -->     → show commands as preview, then execute each with real output
+  <!-- browser -->       → next code block contains browser automation steps
   <!-- clear -->          → clear screen (alternative to ---)
 """
 
@@ -62,6 +63,14 @@ except ImportError:
     _HAS_PYGMENTS = False
 import subprocess
 import sys
+import textwrap
+
+# Optional browser automation — uses playwright if installed
+try:
+    from playwright.sync_api import sync_playwright
+    _HAS_PLAYWRIGHT = True
+except ImportError:
+    _HAS_PLAYWRIGHT = False
 import time
 
 __version__ = "0.3.0"
@@ -392,6 +401,11 @@ def parse_markdown(text):
             i += 1
             continue
 
+        if re.match(r'^\s*<!--\s*browser\s*-->\s*$', line):
+            pending_directives["browser"] = True
+            i += 1
+            continue
+
         if re.match(r'^\s*<!--\s*exec\s*-->\s*$', line):
             pending_directives["exec"] = True
             i += 1
@@ -439,8 +453,11 @@ def parse_markdown(text):
             dirs = pending_directives
             pending_directives = {}
 
+            # <!-- browser --> makes the block a browser automation block
+            if dirs.get("browser"):
+                blocks.append(Block("browser", content, lang=lang, directives=dirs))
             # <!-- output --> forces bash blocks to be shown as static output
-            if dirs.get("output") and lang in ("bash", "sh", "shell", "console", "zsh"):
+            elif dirs.get("output") and lang in ("bash", "sh", "shell", "console", "zsh"):
                 blocks.append(Block("output", content, lang=lang, directives=dirs))
             elif lang in ("bash", "sh", "shell", "console", "zsh"):
                 blocks.append(Block("code", content, lang=lang, directives=dirs))
@@ -833,6 +850,244 @@ def list_sections(blocks):
         print(f"  {i:3d}  {prefix} {strip_md(title):<50s}  ({cmd_count} commands)")
 
 
+# ── Browser capture ────────────────────────────────────────────────────────
+
+def parse_browser_steps(text):
+    """Parse a browser steps block into a list of action dicts.
+
+    Supported actions:
+      open <url>                    — navigate to URL
+      wait <selector> [timeout]     — wait for element (default 10s)
+      click <selector>              — click element
+      type <selector> <text>        — type into input field
+      scroll <direction> [amount]   — scroll down/up (pixels, default 300)
+      screenshot [name]             — capture screenshot
+      sleep <seconds>               — wait N seconds
+      video start [name]            — start recording video
+      video stop                    — stop recording video
+      hover <selector>              — hover over element
+      select <selector> <value>     — select dropdown option
+      resize <width> <height>       — resize viewport
+    """
+    steps = []
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        parts = line.split(None, 1)
+        action = parts[0].lower()
+        args = parts[1] if len(parts) > 1 else ""
+
+        if action == "open":
+            steps.append({"action": "open", "url": args.strip()})
+        elif action == "wait":
+            wait_parts = args.split(None, 1)
+            steps.append({
+                "action": "wait",
+                "selector": wait_parts[0],
+                "timeout": float(wait_parts[1]) * 1000 if len(wait_parts) > 1 else 10000
+            })
+        elif action == "click":
+            steps.append({"action": "click", "selector": args.strip()})
+        elif action == "type":
+            # type "#selector" "text value"
+            type_match = re.match(r'^(["\']?)(.+?)\1\s+(["\']?)(.+?)\3$', args)
+            if type_match:
+                steps.append({"action": "type", "selector": type_match.group(2),
+                              "text": type_match.group(4)})
+            else:
+                # type selector text
+                type_parts = args.split(None, 1)
+                steps.append({"action": "type", "selector": type_parts[0],
+                              "text": type_parts[1] if len(type_parts) > 1 else ""})
+        elif action == "scroll":
+            scroll_parts = args.split()
+            direction = scroll_parts[0] if scroll_parts else "down"
+            amount = int(scroll_parts[1]) if len(scroll_parts) > 1 else 300
+            steps.append({"action": "scroll", "direction": direction, "amount": amount})
+        elif action == "screenshot":
+            steps.append({"action": "screenshot", "name": args.strip() or None})
+        elif action == "sleep":
+            steps.append({"action": "sleep", "seconds": float(args)})
+        elif action == "video":
+            video_parts = args.split(None, 1)
+            if video_parts and video_parts[0] == "stop":
+                steps.append({"action": "video_stop"})
+            else:
+                name = video_parts[1] if len(video_parts) > 1 else None
+                steps.append({"action": "video_start", "name": name})
+        elif action == "hover":
+            steps.append({"action": "hover", "selector": args.strip()})
+        elif action == "select":
+            sel_parts = args.split(None, 1)
+            steps.append({"action": "select", "selector": sel_parts[0],
+                          "value": sel_parts[1] if len(sel_parts) > 1 else ""})
+        elif action == "resize":
+            dims = args.split()
+            steps.append({"action": "resize",
+                          "width": int(dims[0]) if dims else 1280,
+                          "height": int(dims[1]) if len(dims) > 1 else 720})
+        else:
+            steps.append({"action": "unknown", "raw": line})
+
+    return steps
+
+
+def run_browser_steps(steps, assets_dir, name_prefix="browser",
+                      viewport_width=1280, viewport_height=720):
+    """Execute browser steps using Playwright. Returns list of generated asset paths.
+
+    Each screenshot/video is saved to assets_dir with the name_prefix.
+    """
+    if not _HAS_PLAYWRIGHT:
+        print("  Error: playwright not installed. Run: pip install playwright && playwright install chromium",
+              file=sys.stderr)
+        return []
+
+    assets = []
+    screenshot_count = 0
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": viewport_width, "height": viewport_height},
+            device_scale_factor=2,  # retina screenshots
+        )
+        page = context.new_page()
+        recording = False
+        video_path = None
+
+        try:
+            for step in steps:
+                action = step["action"]
+
+                if action == "open":
+                    page.goto(step["url"], wait_until="networkidle")
+
+                elif action == "wait":
+                    page.wait_for_selector(step["selector"],
+                                           timeout=step.get("timeout", 10000))
+
+                elif action == "click":
+                    page.click(step["selector"])
+
+                elif action == "type":
+                    page.fill(step["selector"], step["text"])
+
+                elif action == "hover":
+                    page.hover(step["selector"])
+
+                elif action == "select":
+                    page.select_option(step["selector"], step["value"])
+
+                elif action == "scroll":
+                    amount = step["amount"]
+                    if step["direction"] == "up":
+                        amount = -amount
+                    page.evaluate(f"window.scrollBy(0, {amount})")
+                    page.wait_for_timeout(300)
+
+                elif action == "sleep":
+                    page.wait_for_timeout(int(step["seconds"] * 1000))
+
+                elif action == "resize":
+                    page.set_viewport_size({
+                        "width": step["width"],
+                        "height": step["height"]
+                    })
+
+                elif action == "screenshot":
+                    screenshot_count += 1
+                    shot_name = step.get("name") or f"{screenshot_count:02d}"
+                    shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
+                    page.screenshot(path=shot_path, full_page=False)
+                    assets.append({"type": "screenshot", "path": shot_path})
+                    print(f"  {ok} {shot_path}")
+
+                elif action == "video_start":
+                    vid_name = step.get("name") or "recording"
+                    video_path = os.path.join(assets_dir, f"{name_prefix}-{vid_name}.webm")
+                    # Recreate context with video recording
+                    page.close()
+                    context.close()
+                    context = browser.new_context(
+                        viewport={"width": viewport_width, "height": viewport_height},
+                        device_scale_factor=2,
+                        record_video_dir=assets_dir,
+                        record_video_size={"width": viewport_width, "height": viewport_height}
+                    )
+                    page = context.new_page()
+                    recording = True
+
+                elif action == "video_stop":
+                    if recording:
+                        vid = page.video
+                        page.close()
+                        if vid:
+                            saved_path = vid.path()
+                            if video_path and saved_path:
+                                os.rename(saved_path, video_path)
+                                assets.append({"type": "video", "path": video_path})
+                                print(f"  {ok} {video_path}")
+                        # Reopen without recording
+                        context.close()
+                        context = browser.new_context(
+                            viewport={"width": viewport_width, "height": viewport_height},
+                            device_scale_factor=2,
+                        )
+                        page = context.new_page()
+                        recording = False
+
+                elif action == "unknown":
+                    print(f"  {err} Unknown browser action: {step['raw']}", file=sys.stderr)
+
+        except Exception as e:
+            print(f"  {err} Browser error: {e}", file=sys.stderr)
+        finally:
+            if recording:
+                vid = page.video
+                page.close()
+                if vid and video_path:
+                    saved_path = vid.path()
+                    if saved_path and os.path.exists(saved_path):
+                        os.rename(saved_path, video_path)
+                        assets.append({"type": "video", "path": video_path})
+                        print(f"  {ok} {video_path}")
+                context.close()
+            else:
+                page.close()
+                context.close()
+            browser.close()
+
+    return assets
+
+
+def video_to_gif(video_path, gif_path=None, fps=10, width=800):
+    """Convert a video file to GIF using ffmpeg."""
+    gif_path = gif_path or os.path.splitext(video_path)[0] + ".gif"
+    ok = "\033[0;32m[OK]\033[0m"
+    err = "\033[0;31m[ERR]\033[0m"
+    try:
+        result = subprocess.run([
+            "ffmpeg", "-y", "-i", video_path,
+            "-vf", f"fps={fps},scale={width}:-1:flags=lanczos",
+            "-loop", "0", gif_path
+        ], capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            print(f"  {ok} {gif_path}")
+            return gif_path
+        else:
+            print(f"  {err} ffmpeg failed: {result.stderr[:200]}", file=sys.stderr)
+    except FileNotFoundError:
+        print(f"  {err} ffmpeg not found. Install: sudo apt install ffmpeg", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print(f"  {err} ffmpeg timed out", file=sys.stderr)
+    return None
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 def cast_to_gif(cast_path):
@@ -901,7 +1156,7 @@ def _walk_markdown_blocks(md_text):
 
         # Directives
         directive_match = re.match(
-            r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear)\s*-->\s*$', line)
+            r'^\s*<!--\s*(exec|no-exec|output|view-exec|clear|browser)\s*-->\s*$', line)
         td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
         prompt_match = re.match(r'^\s*<!--\s*prompt\s+(.+?)\s*-->\s*$', line)
         skip_match = re.match(r'^\s*<!--\s*skip\s*-->\s*$', line)
@@ -955,7 +1210,10 @@ def _walk_markdown_blocks(md_text):
 
             dirs = pending_directives
             pending_directives = {}
-            yield ("code", lang, code_lines, original_lines, dirs)
+            if dirs.get("browser"):
+                yield ("browser", lang, code_lines, original_lines, dirs)
+            else:
+                yield ("code", lang, code_lines, original_lines, dirs)
             continue
 
         yield ("line", line)
@@ -1019,6 +1277,31 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
                 print(f"  {err} Failed to generate {gif_path}", file=sys.stderr)
 
             output_lines.extend(original_lines)
+
+        elif event[0] == "browser":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+            slug = slugify(current_section)
+            name_prefix = f"{block_count:02d}-{slug}"
+
+            steps = parse_browser_steps(code_content)
+            browser_assets = run_browser_steps(steps, assets_dir, name_prefix=name_prefix)
+
+            alt_text = strip_md(current_section)
+            for asset in browser_assets:
+                rel_path = os.path.join(os.path.basename(assets_dir),
+                                        os.path.basename(asset["path"]))
+                if asset["type"] == "screenshot":
+                    output_lines.append(f"![{alt_text}]({rel_path})")
+                    output_lines.append("")
+                elif asset["type"] == "video":
+                    gif_path = video_to_gif(asset["path"])
+                    if gif_path:
+                        rel_gif = os.path.join(os.path.basename(assets_dir),
+                                               os.path.basename(gif_path))
+                        output_lines.append(f"![{alt_text}]({rel_gif})")
+                        output_lines.append("")
 
     return "\n".join(output_lines), block_count
 
@@ -1097,6 +1380,33 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
     preload: true
   }});</script>
 </div>''')
+
+        elif event[0] == "browser":
+            _, lang, code_lines, original_lines, dirs = event
+            code_content = "\n".join(code_lines)
+            block_count += 1
+            slug = slugify(current_section)
+            name_prefix = f"{block_count:02d}-{slug}"
+
+            steps = parse_browser_steps(code_content)
+            browser_assets = run_browser_steps(steps, assets_dir, name_prefix=name_prefix)
+
+            alt_text = _html_escape(strip_md(current_section))
+            for asset in browser_assets:
+                rel_path = os.path.join(os.path.basename(assets_dir),
+                                        os.path.basename(asset["path"]))
+                if asset["type"] == "screenshot":
+                    sections_html.append(
+                        f'<div class="browser-capture">'
+                        f'<img src="{rel_path}" alt="{alt_text}" '
+                        f'style="max-width:100%;border-radius:8px;border:1px solid var(--border);">'
+                        f'</div>')
+                elif asset["type"] == "video":
+                    sections_html.append(
+                        f'<div class="browser-capture">'
+                        f'<video controls style="max-width:100%;border-radius:8px;">'
+                        f'<source src="{rel_path}" type="video/webm">'
+                        f'</video></div>')
 
     body = "\n".join(sections_html)
     html = _html_template(page_title or "Documentation", body, theme)

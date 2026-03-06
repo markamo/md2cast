@@ -10,6 +10,8 @@ Write your tutorial in Markdown, run `md2cast`, get a `.cast` file you can play,
 - **asciinema** — for playing back `.cast` files ([asciinema.org](https://asciinema.org))
 - **agg** *(optional)* — for converting `.cast` to GIF ([github.com/asciinema/agg](https://github.com/asciinema/agg))
 - **pygments** *(optional)* — for syntax highlighting in code blocks (`pip install pygments`)
+- **playwright** *(optional)* — for browser capture (`pip install playwright && playwright install chromium`)
+- **ffmpeg** *(optional)* — for converting browser video recordings to GIF
 
 ```bash
 # Install asciinema
@@ -105,6 +107,7 @@ HTML comment directives give per-block control without breaking normal Markdown 
 | `<!-- prompt # -->` | Change prompt character (e.g., `#` for root, `>>>` for Python) |
 | `<!-- output -->` | Force next ` ```bash ` block to display as static output |
 | `<!-- view-exec -->` | Show commands as preview first, then execute each one with real output |
+| `<!-- browser -->` | Next code block contains browser automation steps (requires playwright) |
 | `<!-- clear -->` | Clear screen (alternative to `---`) |
 | `<!-- skip -->` | Skip the next block entirely |
 | `<!-- pause 3 -->` | Pause for N seconds |
@@ -299,6 +302,73 @@ Each player supports play/pause, speed control, and text selection. Code blocks 
 md2cast tutorial.md --render-html -o docs/visual-guide.html
 md2cast tutorial.md --render-html --execute  # with real command output
 ```
+
+## Browser Capture
+
+Capture browser screenshots and recordings alongside terminal screencasts. Requires [Playwright](https://playwright.dev/python/):
+
+```bash
+pip install playwright && playwright install chromium
+```
+
+Use the `<!-- browser -->` directive before a code block containing browser steps:
+
+````markdown
+## Check the Dashboard
+
+<!-- browser -->
+```steps
+open https://localhost:3000/dashboard
+wait .dashboard-loaded
+screenshot dashboard
+scroll down 500
+screenshot dashboard-scrolled
+```
+````
+
+### Browser actions
+
+| Action | Example | Description |
+|--------|---------|-------------|
+| `open <url>` | `open https://example.com` | Navigate to URL |
+| `click <selector>` | `click #login-btn` | Click an element |
+| `type <selector> <text>` | `type #email user@test.com` | Type into an input |
+| `wait <selector>` | `wait .loaded` | Wait for element to appear |
+| `screenshot [name]` | `screenshot dashboard` | Capture screenshot |
+| `scroll <dir> [px]` | `scroll down 500` | Scroll the page |
+| `sleep <seconds>` | `sleep 2` | Wait N seconds |
+| `hover <selector>` | `hover .menu-item` | Hover over element |
+| `select <selector> <val>` | `select #country US` | Select dropdown option |
+| `resize <w> <h>` | `resize 1920 1080` | Resize viewport |
+| `video start [name]` | `video start demo` | Start recording video |
+| `video stop` | `video stop` | Stop recording |
+
+Screenshots are embedded as images in `--render` output. Videos are converted to GIF via ffmpeg.
+
+Mix terminal and browser blocks freely in the same document:
+
+````markdown
+## Deploy
+
+```bash
+git push origin main
+```
+
+## Verify
+
+<!-- browser -->
+```steps
+open https://my-app.com
+wait .app-loaded
+screenshot deployed
+```
+
+## Check Logs
+
+```bash
+tail -f /var/log/app.log
+```
+````
 
 ## Execute Mode
 
