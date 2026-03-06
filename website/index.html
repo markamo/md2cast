@@ -185,8 +185,8 @@ section .inner{max-width:var(--max);margin:0 auto}
   flex:1;text-align:center;font-size:.75rem;color:var(--muted);
   margin-right:2rem;
 }
-.demo-body{padding:1.5rem 2rem;font-family:var(--mono);font-size:.85rem;line-height:1.8}
-.demo-body .line{display:block}
+.demo-body{padding:1.5rem 2rem;font-family:var(--mono);font-size:.85rem;line-height:1.8;min-height:340px}
+.demo-body .line{display:block;opacity:0;transform:translateY(4px);animation:fadeInLine .3s forwards}
 .demo-body .dim{color:#555}
 .demo-body .green{color:var(--green)}
 .demo-body .blue{color:var(--accent)}
@@ -194,6 +194,39 @@ section .inner{max-width:var(--max);margin:0 auto}
 .demo-body .yellow{color:#ffd60a}
 .demo-body .white{color:var(--fg)}
 .demo-body .muted{color:var(--muted)}
+@keyframes fadeInLine{to{opacity:1;transform:translateY(0)}}
+.demo-pair{
+  display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;
+  max-width:1000px;margin-left:auto;margin-right:auto;
+}
+.demo-pair .demo-window{margin:0}
+.demo-label{
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;
+  color:var(--muted);font-weight:600;margin-bottom:.75rem;
+}
+.demo-body .typed{
+  display:inline;overflow:hidden;white-space:nowrap;
+  border-right:2px solid var(--green);
+  animation:typing 1.2s steps(30) forwards,blink .6s step-end infinite;
+}
+@keyframes typing{from{max-width:0}to{max-width:100%}}
+@keyframes blink{50%{border-color:transparent}}
+.demo-body .cursor{
+  display:inline-block;width:8px;height:1.1em;
+  background:var(--green);vertical-align:text-bottom;
+  animation:blink .6s step-end infinite;
+  margin-left:2px;
+}
+.md-source{
+  padding:1.5rem 2rem;font-family:var(--mono);font-size:.82rem;
+  line-height:1.9;color:var(--muted);min-height:340px;
+}
+.md-source .md-h{color:var(--accent);font-weight:600}
+.md-source .md-code{color:var(--green)}
+.md-source .md-text{color:var(--muted)}
+.md-source .md-quote{color:#ffd60a}
+.md-source .md-fence{color:#555}
+.md-source .md-active{color:var(--fg);transition:color .3s}
 
 /* ── Markdown mapping ──────────────────────────────────────────────── */
 .mapping{background:#0a0a0a}
@@ -286,6 +319,7 @@ footer a:hover{color:var(--fg)}
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media(max-width:900px){
   .steps-grid,.features-grid,.pricing-grid{grid-template-columns:1fr}
+  .demo-pair{grid-template-columns:1fr}
   .mapping-grid{grid-template-columns:1fr;gap:0}
   .mapping-cell:nth-child(odd){border-right:none}
   nav .links{display:none}
@@ -385,33 +419,47 @@ echo "Hello, world!"
   <div class="inner">
     <div class="section-label">See it in Action</div>
     <div class="section-title">Your Markdown, animated.</div>
-    <p class="section-subtitle">Every heading, code block, and paragraph maps to a screencast element.</p>
-    <div class="demo-window">
-      <div class="demo-titlebar">
-        <div class="demo-dot red"></div>
-        <div class="demo-dot yellow"></div>
-        <div class="demo-dot green"></div>
-        <span>terminal &mdash; tutorial.cast</span>
+    <p class="section-subtitle">Every heading, code block, and paragraph maps to a screencast element — live.</p>
+    <div class="demo-pair">
+      <div>
+        <div class="demo-label">tutorial.md</div>
+        <div class="demo-window">
+          <div class="demo-titlebar">
+            <div class="demo-dot red"></div>
+            <div class="demo-dot yellow"></div>
+            <div class="demo-dot green"></div>
+            <span>tutorial.md</span>
+          </div>
+          <div class="md-source" id="md-source">
+            <span class="line md-h" data-step="0"># Getting Started</span>
+            <span class="line" data-step="0">&nbsp;</span>
+            <span class="line md-text" data-step="1">Install the package from npm.</span>
+            <span class="line" data-step="1">&nbsp;</span>
+            <span class="line md-fence" data-step="2">```bash</span>
+            <span class="line md-code" data-step="2">npm install my-awesome-tool</span>
+            <span class="line md-fence" data-step="2">```</span>
+            <span class="line" data-step="2">&nbsp;</span>
+            <span class="line md-text" data-step="3">Verify it works:</span>
+            <span class="line" data-step="3">&nbsp;</span>
+            <span class="line md-fence" data-step="4">```bash</span>
+            <span class="line md-code" data-step="4">my-tool --version</span>
+            <span class="line md-fence" data-step="4">```</span>
+            <span class="line" data-step="4">&nbsp;</span>
+            <span class="line md-quote" data-step="5">&gt; Tip: Use --global for system-wide.</span>
+          </div>
+        </div>
       </div>
-      <div class="demo-body">
-        <span class="line dim">  # ╔══════════════════════════════════════════╗</span>
-        <span class="line dim">  # ║</span><span class="white">          Getting Started                </span><span class="dim">║</span>
-        <span class="line dim">  # ╚══════════════════════════════════════════╝</span>
-        <span class="line">&nbsp;</span>
-        <span class="line muted">  # Install the package from npm</span>
-        <span class="line">&nbsp;</span>
-        <span class="line">  <span class="green">$</span> <span class="white">npm install my-awesome-tool</span></span>
-        <span class="line">&nbsp;</span>
-        <span class="line muted">  added 42 packages in 1.2s</span>
-        <span class="line">&nbsp;</span>
-        <span class="line muted">  # Verify the installation</span>
-        <span class="line">&nbsp;</span>
-        <span class="line">  <span class="green">$</span> <span class="white">my-tool --version</span></span>
-        <span class="line muted">  v2.1.0</span>
-        <span class="line">&nbsp;</span>
-        <span class="line yellow">  ▌ Tip: Add --global to install system-wide.</span>
-        <span class="line">&nbsp;</span>
-        <span class="line" style="text-align:right;padding-right:2rem"><span class="dim">md2cast</span></span>
+      <div>
+        <div class="demo-label">tutorial.cast <span style="color:var(--green);font-size:.65rem">&bull; playing</span></div>
+        <div class="demo-window">
+          <div class="demo-titlebar">
+            <div class="demo-dot red"></div>
+            <div class="demo-dot yellow"></div>
+            <div class="demo-dot green"></div>
+            <span>asciinema player</span>
+          </div>
+          <div class="demo-body" id="cast-output"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -569,13 +617,128 @@ function copyInstall(btn){
     setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},2000);
   });
 }
-// Smooth scroll for nav links
 document.querySelectorAll('nav a[href^="#"]').forEach(function(a){
   a.addEventListener('click',function(e){
     e.preventDefault();
     document.querySelector(this.getAttribute('href')).scrollIntoView({behavior:'smooth'});
   });
 });
+
+// ── Animated demo ────────────────────────────────────────────────────
+(function(){
+  var output=document.getElementById('cast-output');
+  var source=document.getElementById('md-source');
+  if(!output||!source) return;
+
+  // Cast frames: [step, delay_before_ms, html_lines[]]
+  var frames=[
+    [0, 0, [
+      '<span class="dim">  # ╔════════════════════════════════════════╗</span>',
+      '<span class="dim">  # ║</span><span class="white">       Getting Started              </span><span class="dim">║</span>',
+      '<span class="dim">  # ╚════════════════════════════════════════╝</span>',
+      '&nbsp;'
+    ]],
+    [1, 800, [
+      '<span class="muted">  # Install the package from npm.</span>',
+      '&nbsp;'
+    ]],
+    [2, 600, [
+      '  <span class="green">$</span> <span class="white" id="type1"></span><span class="cursor"></span>'
+    ]],
+    [2.5, 1200, [
+      '  <span class="muted">added 42 packages in 1.2s</span>',
+      '&nbsp;'
+    ]],
+    [3, 800, [
+      '<span class="muted">  # Verify it works:</span>',
+      '&nbsp;'
+    ]],
+    [4, 600, [
+      '  <span class="green">$</span> <span class="white" id="type2"></span><span class="cursor"></span>'
+    ]],
+    [4.5, 1000, [
+      '  <span class="muted">v2.1.0</span>',
+      '&nbsp;'
+    ]],
+    [5, 800, [
+      '<span class="yellow">  ▌ Tip: Use --global for system-wide.</span>',
+      '&nbsp;',
+      '<span style="float:right;padding-right:1rem" class="dim">md2cast</span>'
+    ]]
+  ];
+
+  function typeText(id,text,speed,cb){
+    var el=document.getElementById(id);
+    if(!el){if(cb)cb();return;}
+    var i=0;
+    var iv=setInterval(function(){
+      if(i<text.length){el.textContent+=text[i];i++}
+      else{clearInterval(iv);
+        // Remove cursor after typing done
+        var cur=el.parentElement.querySelector('.cursor');
+        if(cur)cur.remove();
+        if(cb)cb();
+      }
+    },speed);
+  }
+
+  function highlightSource(step){
+    source.querySelectorAll('[data-step]').forEach(function(el){
+      var s=parseFloat(el.dataset.step);
+      if(s===Math.floor(step)) el.classList.add('md-active');
+      else el.classList.remove('md-active');
+    });
+  }
+
+  var running=false;
+  function playDemo(){
+    if(running)return;
+    running=true;
+    output.innerHTML='';
+    source.querySelectorAll('.md-active').forEach(function(el){el.classList.remove('md-active')});
+    var idx=0;
+
+    function nextFrame(){
+      if(idx>=frames.length){
+        // Pause then restart
+        setTimeout(function(){running=false;playDemo()},4000);
+        return;
+      }
+      var frame=frames[idx];
+      var step=frame[0];
+      var delay=frame[1];
+      var lines=frame[2];
+      idx++;
+
+      setTimeout(function(){
+        highlightSource(step);
+        lines.forEach(function(html){
+          var span=document.createElement('span');
+          span.className='line';
+          span.innerHTML=html;
+          output.appendChild(span);
+        });
+        output.scrollTop=output.scrollHeight;
+
+        // Type commands if present
+        if(step===2){
+          typeText('type1','npm install my-awesome-tool',35,nextFrame);
+        } else if(step===4){
+          typeText('type2','my-tool --version',35,nextFrame);
+        } else {
+          nextFrame();
+        }
+      },delay);
+    }
+    nextFrame();
+  }
+
+  // Start when visible
+  var observer=new IntersectionObserver(function(entries){
+    if(entries[0].isIntersecting){playDemo();observer.disconnect();}
+  },{threshold:0.3});
+  observer.observe(output.closest('.demo'));
+})();
 </script>
 
 </body>
