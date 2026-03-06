@@ -33,19 +33,6 @@ sleep 1
 screenshot step-3
 ```
 
-## Screen Recording
-
-Record the desktop for 3 seconds, auto-converts to GIF:
-
-Requires: `wf-recorder` (Wayland) or `ffmpeg` (X11)
-
-<!-- gui -->
-```steps
-record start demo-recording
-sleep 3
-record stop
-```
-
 ## Done
 
 ```bash

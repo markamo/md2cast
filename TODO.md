@@ -26,9 +26,8 @@
 
 ### GUI Capture
 - [x] xdotool/ydotool desktop automation
-- [x] Full screen + window screenshots
-- [ ] Screen recording (video capture via ffmpeg/wf-recorder)
-- [ ] GUI video-to-GIF conversion
+- [x] Full screen + window + region screenshots
+- [x] Silent screenshots via XDG Desktop Portal (no flash/sound)
 - [ ] OCR-based element detection (click on "Save" instead of coordinates)
 - [ ] Template matching for visual assertions
 
@@ -73,13 +72,36 @@
 - [ ] GitHub Actions integration (`md2cast-action`)
 - [ ] VS Code extension (preview pane)
 
-## Watermark Strategy
-- **Free**: "md2cast" watermark on every GIF (bottom-right, dim text)
-- **Pro**: No watermark on GIFs (`--no-watermark` flag, license key check)
-- This is the Shutterstock model — free users get branded output, paying users get clean output
+## Feature Tiers
 
-## Monetization Strategy
-- **Free tier**: CLI features (MIT license) — cast generation, all directives, themes, syntax highlighting, gif, render, render-html. Watermark on GIFs.
-- **Pro tier ($12/mo)**: Browser + GUI capture, AI enhancement, no watermark, priority support
-- **Team tier ($25/user/mo)**: Pro + shared themes, CI/CD integration, private cast hosting
-- **Alternative**: Acquisition by docs platform (Mintlify, GitBook, ReadMe)
+### Free (MIT, public repo `md2cast`)
+- Cast generation from markdown (all directives, all block types)
+- `--execute`, `--split`, `--section`, `--list`
+- `--render` (markdown + GIFs), `--render-html`, `--embed`
+- Custom themes, syntax highlighting
+- `--gif` (agg conversion)
+- Auto-sized rows
+- **Limits**: 10 sections (`--split`), 15 code blocks per doc
+- **Watermark**: "md2cast" on every GIF (cannot be removed)
+
+### Pro ($12/mo, private repo `md2cast-pro`)
+- Everything in Free, no limits
+- `--no-watermark` — clean GIFs
+- Browser capture (`<!-- browser -->` + Playwright)
+- GUI capture (`<!-- gui -->` + screenshots)
+- AI enhance (`md2cast enhance` — auto-insert directives)
+- AI narrate / AI review (future)
+- Built-in theme gallery
+- Priority support
+
+### Team ($25/user/mo)
+- Everything in Pro
+- Shared theme library
+- CI/CD integration (GitHub Action)
+- Private cast hosting
+- VS Code extension
+
+### Distribution
+- **Free binary**: `md2cast` — public GitHub repo, MIT license, `pip install md2cast`
+- **Pro binary**: `md2cast` (same name) — commercial license, license key check
+- Shutterstock model: free = branded output, paid = clean output

@@ -66,15 +66,37 @@ import subprocess
 import sys
 import textwrap
 
-# Optional browser automation — uses playwright if installed
-try:
-    from playwright.sync_api import sync_playwright
-    _HAS_PLAYWRIGHT = True
-except ImportError:
-    _HAS_PLAYWRIGHT = False
 import time
 
 __version__ = "0.3.0"
+
+# ── Free tier limits ──────────────────────────────────────────────────────
+FREE_TIER = True
+FREE_MAX_SECTIONS = 10      # ## headings
+FREE_MAX_BLOCKS = 15        # code blocks (cast/gif generation)
+_PRO_URL = "https://md2cast.dev/pro"
+
+
+def _check_block_limit(block_count):
+    """Return True if block is within free tier limit. Prints warning once at limit."""
+    if not FREE_TIER:
+        return True
+    if block_count == FREE_MAX_BLOCKS + 1:
+        print(f"\n  Free tier limit: {FREE_MAX_BLOCKS} code blocks per document.",
+              file=sys.stderr)
+        print(f"  Remaining blocks skipped. Upgrade: {_PRO_URL}\n", file=sys.stderr)
+    return block_count <= FREE_MAX_BLOCKS
+
+
+def _check_section_limit(sections):
+    """Trim sections to free tier limit. Returns trimmed list."""
+    if not FREE_TIER or len(sections) <= FREE_MAX_SECTIONS:
+        return sections
+    print(f"\n  Free tier limit: {FREE_MAX_SECTIONS} sections per document "
+          f"(this doc has {len(sections)}).",
+          file=sys.stderr)
+    print(f"  Upgrade for unlimited: {_PRO_URL}\n", file=sys.stderr)
+    return sections[:FREE_MAX_SECTIONS]
 
 # ── Theme ──────────────────────────────────────────────────────────────────
 
@@ -858,7 +880,12 @@ def list_sections(blocks):
         print(f"  {i:3d}  {prefix} {strip_md(title):<50s}  ({cmd_count} commands)")
 
 
-# ── Browser capture ────────────────────────────────────────────────────────
+# ── Browser capture (Pro) ──────────────────────────────────────────────────
+
+def _pro_required(feature):
+    """Print upgrade message for Pro features."""
+    print(f"\n  {feature} requires md2cast Pro.", file=sys.stderr)
+    print(f"  Upgrade: {_PRO_URL}\n", file=sys.stderr)
 
 def parse_browser_steps(text):
     """Parse a browser steps block into a list of action dicts.
@@ -942,450 +969,20 @@ def parse_browser_steps(text):
     return steps
 
 
+
 def run_browser_steps(steps, assets_dir, name_prefix="browser",
                       viewport_width=1280, viewport_height=720):
-    """Execute browser steps using Playwright. Returns list of generated asset paths.
-
-    Each screenshot/video is saved to assets_dir with the name_prefix.
-    """
-    if not _HAS_PLAYWRIGHT:
-        print("  Error: playwright not installed. Run: pip install playwright && playwright install chromium",
-              file=sys.stderr)
-        return []
-
-    assets = []
-    screenshot_count = 0
-    ok = "\033[0;32m[OK]\033[0m"
-    err = "\033[0;31m[ERR]\033[0m"
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            viewport={"width": viewport_width, "height": viewport_height},
-            device_scale_factor=2,  # retina screenshots
-        )
-        page = context.new_page()
-        recording = False
-        video_path = None
-
-        try:
-            for step in steps:
-                action = step["action"]
-
-                if action == "open":
-                    page.goto(step["url"], wait_until="networkidle")
-
-                elif action == "wait":
-                    page.wait_for_selector(step["selector"],
-                                           timeout=step.get("timeout", 10000))
-
-                elif action == "click":
-                    page.click(step["selector"])
-
-                elif action == "type":
-                    page.fill(step["selector"], step["text"])
-
-                elif action == "hover":
-                    page.hover(step["selector"])
-
-                elif action == "select":
-                    page.select_option(step["selector"], step["value"])
-
-                elif action == "scroll":
-                    amount = step["amount"]
-                    if step["direction"] == "up":
-                        amount = -amount
-                    page.evaluate(f"window.scrollBy(0, {amount})")
-                    page.wait_for_timeout(300)
-
-                elif action == "sleep":
-                    page.wait_for_timeout(int(step["seconds"] * 1000))
-
-                elif action == "resize":
-                    page.set_viewport_size({
-                        "width": step["width"],
-                        "height": step["height"]
-                    })
-
-                elif action == "screenshot":
-                    screenshot_count += 1
-                    shot_name = step.get("name") or f"{screenshot_count:02d}"
-                    shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
-                    page.screenshot(path=shot_path, full_page=False)
-                    assets.append({"type": "screenshot", "path": shot_path})
-                    print(f"  {ok} {shot_path}")
-
-                elif action == "video_start":
-                    vid_name = step.get("name") or "recording"
-                    video_path = os.path.join(assets_dir, f"{name_prefix}-{vid_name}.webm")
-                    # Recreate context with video recording
-                    page.close()
-                    context.close()
-                    context = browser.new_context(
-                        viewport={"width": viewport_width, "height": viewport_height},
-                        device_scale_factor=2,
-                        record_video_dir=assets_dir,
-                        record_video_size={"width": viewport_width, "height": viewport_height}
-                    )
-                    page = context.new_page()
-                    recording = True
-
-                elif action == "video_stop":
-                    if recording:
-                        vid = page.video
-                        page.close()
-                        if vid:
-                            saved_path = vid.path()
-                            if video_path and saved_path:
-                                os.rename(saved_path, video_path)
-                                assets.append({"type": "video", "path": video_path})
-                                print(f"  {ok} {video_path}")
-                        # Reopen without recording
-                        context.close()
-                        context = browser.new_context(
-                            viewport={"width": viewport_width, "height": viewport_height},
-                            device_scale_factor=2,
-                        )
-                        page = context.new_page()
-                        recording = False
-
-                elif action == "unknown":
-                    print(f"  {err} Unknown browser action: {step['raw']}", file=sys.stderr)
-
-        except Exception as e:
-            print(f"  {err} Browser error: {e}", file=sys.stderr)
-        finally:
-            if recording:
-                vid = page.video
-                page.close()
-                if vid and video_path:
-                    saved_path = vid.path()
-                    if saved_path and os.path.exists(saved_path):
-                        os.rename(saved_path, video_path)
-                        assets.append({"type": "video", "path": video_path})
-                        print(f"  {ok} {video_path}")
-                context.close()
-            else:
-                page.close()
-                context.close()
-            browser.close()
-
-    return assets
-
+    """Browser capture requires md2cast Pro."""
+    _pro_required("Browser capture (<!-- browser -->)")
+    return []
 
 def video_to_gif(video_path, gif_path=None, fps=10, width=800):
-    """Convert a video file to GIF using ffmpeg.
-
-    Uses a two-pass approach: first generates an optimal palette,
-    then creates the GIF with that palette for better quality.
-    Handles webm files with missing duration metadata.
-    """
-    gif_path = gif_path or os.path.splitext(video_path)[0] + ".gif"
-    ok = "\033[0;32m[OK]\033[0m"
-    err = "\033[0;31m[ERR]\033[0m"
-
-    if not _has_command("ffmpeg"):
-        print(f"  {err} ffmpeg not found. Install: sudo apt install ffmpeg", file=sys.stderr)
-        return None
-
-    vf_scale = f"fps={fps},scale={width}:-1:flags=lanczos"
-
-    try:
-        # Try simple single-pass first
-        result = subprocess.run([
-            "ffmpeg", "-y", "-i", video_path,
-            "-vf", vf_scale,
-            "-loop", "0", gif_path
-        ], capture_output=True, text=True, timeout=120)
-
-        if result.returncode == 0 and os.path.exists(gif_path) and os.path.getsize(gif_path) > 0:
-            return gif_path
-
-        # If that failed (e.g. webm with no duration), try re-muxing first
-        # to fix container metadata, then convert
-        fixed_path = video_path + ".fixed.mp4"
-        remux = subprocess.run([
-            "ffmpeg", "-y", "-i", video_path,
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-movflags", "+faststart", fixed_path
-        ], capture_output=True, text=True, timeout=120)
-
-        if remux.returncode == 0 and os.path.exists(fixed_path):
-            result = subprocess.run([
-                "ffmpeg", "-y", "-i", fixed_path,
-                "-vf", vf_scale,
-                "-loop", "0", gif_path
-            ], capture_output=True, text=True, timeout=120)
-
-            # Clean up intermediate file
-            try:
-                os.unlink(fixed_path)
-            except OSError:
-                pass
-
-            if result.returncode == 0 and os.path.exists(gif_path) and os.path.getsize(gif_path) > 0:
-                return gif_path
-
-        print(f"  {err} GIF conversion failed for {video_path}", file=sys.stderr)
-    except subprocess.TimeoutExpired:
-        print(f"  {err} ffmpeg timed out", file=sys.stderr)
+    """Video-to-GIF conversion — Pro only."""
+    _pro_required("Video-to-GIF conversion")
     return None
 
 
-# ── GUI capture ────────────────────────────────────────────────────────────
-
-def _has_command(cmd):
-    """Check if a command is available on PATH."""
-    try:
-        subprocess.run(["which", cmd], capture_output=True, check=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def _detect_display_server():
-    """Detect whether we're on X11 or Wayland."""
-    session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
-    if session_type == "wayland":
-        return "wayland"
-    if session_type == "x11" or os.environ.get("DISPLAY"):
-        return "x11"
-    return None
-
-
-
-def _portal_screenshot_silent(output_path):
-    """Take a screenshot via XDG Desktop Portal — silent, no flash.
-
-    Works on GNOME, KDE, and any compositor supporting the portal.
-    Uses dbus-python + GLib to handle the async response signal.
-    """
-    try:
-        import dbus
-        from dbus.mainloop.glib import DBusGMainLoop
-        from gi.repository import GLib
-
-        DBusGMainLoop(set_as_default=True)
-        bus = dbus.SessionBus()
-        result_uri = [None]
-        loop = GLib.MainLoop()
-
-        def on_response(response, results):
-            if response == 0 and 'uri' in results:
-                result_uri[0] = str(results['uri'])
-            loop.quit()
-
-        proxy = bus.get_object('org.freedesktop.portal.Desktop',
-                               '/org/freedesktop/portal/desktop')
-        iface = dbus.Interface(proxy, 'org.freedesktop.portal.Screenshot')
-
-        options = dbus.Dictionary({'interactive': dbus.Boolean(False)}, signature='sv')
-        request_path = iface.Screenshot('', options)
-
-        bus.add_signal_receiver(on_response,
-            signal_name='Response',
-            dbus_interface='org.freedesktop.portal.Request',
-            path=request_path)
-
-        GLib.timeout_add(5000, loop.quit)
-        loop.run()
-
-        if result_uri[0]:
-            src = result_uri[0].replace('file://', '')
-            if os.path.exists(src):
-                import shutil
-                shutil.copy2(src, output_path)
-                try:
-                    os.unlink(src)  # clean up portal temp file
-                except OSError:
-                    pass
-                return True
-    except ImportError:
-        pass
-    except Exception:
-        pass
-    return False
-
-
-def _gui_screenshot(output_path, region=None):
-    """Take a screenshot of the desktop or a region.
-
-    Prefers the XDG portal (silent, no flash) on Wayland.
-    Falls back to grim, gnome-screenshot, or X11 tools.
-
-    region: (x, y, width, height) or None for full screen.
-    """
-    display = _detect_display_server()
-    err = "\033[0;31m[ERR]\033[0m"
-
-    if display == "wayland":
-        # Best method: XDG portal (silent, no flash, works on all compositors)
-        if not region and _portal_screenshot_silent(output_path):
-            return True
-
-        # Fallback to CLI tools
-        methods = []
-        if _has_command("grim"):
-            cmd = ["grim"]
-            if region:
-                x, y, w, h = region
-                cmd += ["-g", f"{x},{y} {w}x{h}"]
-            cmd.append(output_path)
-            methods.append(cmd)
-        if _has_command("gnome-screenshot"):
-            methods.append(["gnome-screenshot", "-f", output_path])
-        if _has_command("spectacle"):
-            methods.append(["spectacle", "-b", "-n", "-o", output_path])
-
-        silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
-        for cmd in methods:
-            try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
-                                        env=silent_env)
-                if result.returncode == 0 and os.path.exists(output_path):
-                    return True
-            except subprocess.TimeoutExpired:
-                pass
-
-        print(f"  {err} No screenshot method worked. Need: dbus-python + pygobject, grim, or gnome-screenshot",
-              file=sys.stderr)
-        return False
-
-    # X11 tools
-    cmd = None
-    if _has_command("import"):
-        cmd = ["import", "-window", "root"]
-        if region:
-            x, y, w, h = region
-            cmd += ["-crop", f"{w}x{h}+{x}+{y}"]
-        cmd.append(output_path)
-    elif _has_command("scrot"):
-        cmd = ["scrot", output_path]
-    elif _has_command("gnome-screenshot"):
-        cmd = ["gnome-screenshot", "-f", output_path]
-
-    if not cmd:
-        print(f"  {err} No screenshot tool found. Install: sudo apt install scrot",
-              file=sys.stderr)
-        return False
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            return True
-        else:
-            print(f"  {err} Screenshot failed: {result.stderr[:200]}", file=sys.stderr)
-    except subprocess.TimeoutExpired:
-        print(f"  {err} Screenshot timed out", file=sys.stderr)
-    return False
-
-
-def _gui_window_screenshot(window_title, output_path):
-    """Take a screenshot of a specific window by title."""
-    ok = "\033[0;32m[OK]\033[0m"
-    err = "\033[0;31m[ERR]\033[0m"
-
-    if _has_command("xdotool") and _has_command("import"):
-        # Find window by title, then screenshot it
-        try:
-            result = subprocess.run(
-                ["xdotool", "search", "--name", window_title],
-                capture_output=True, text=True, timeout=5)
-            window_ids = result.stdout.strip().split("\n")
-            if window_ids and window_ids[0]:
-                wid = window_ids[0]
-                subprocess.run(["import", "-window", wid, output_path],
-                               capture_output=True, timeout=10)
-                return True
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-            pass
-    # Fallback to full screen
-    return _gui_screenshot(output_path)
-
-
-def _gui_input(action, **kwargs):
-    """Send input events to the desktop.
-
-    Uses xdotool (X11) or ydotool (Wayland).
-    """
-    display = _detect_display_server()
-
-    if display == "wayland" and _has_command("ydotool"):
-        tool = "ydotool"
-    elif _has_command("xdotool"):
-        tool = "xdotool"
-    else:
-        print("  Error: No input tool found. Install: sudo apt install xdotool (X11) or ydotool (Wayland)",
-              file=sys.stderr)
-        return False
-
-    try:
-        if action == "click":
-            x, y = kwargs["x"], kwargs["y"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "mousemove", str(x), str(y), "click", "1"],
-                               capture_output=True, timeout=5)
-            else:
-                subprocess.run(["ydotool", "mousemove", "-a", str(x), str(y)],
-                               capture_output=True, timeout=5)
-                subprocess.run(["ydotool", "click", "1"], capture_output=True, timeout=5)
-
-        elif action == "type":
-            text = kwargs["text"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "type", "--delay", "50", text],
-                               capture_output=True, timeout=30)
-            else:
-                subprocess.run(["ydotool", "type", text],
-                               capture_output=True, timeout=30)
-
-        elif action == "key":
-            key = kwargs["key"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "key", key],
-                               capture_output=True, timeout=5)
-            else:
-                subprocess.run(["ydotool", "key", key],
-                               capture_output=True, timeout=5)
-
-        elif action == "move":
-            x, y = kwargs["x"], kwargs["y"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "mousemove", str(x), str(y)],
-                               capture_output=True, timeout=5)
-            else:
-                subprocess.run(["ydotool", "mousemove", "-a", str(x), str(y)],
-                               capture_output=True, timeout=5)
-
-        elif action == "drag":
-            x1, y1, x2, y2 = kwargs["x1"], kwargs["y1"], kwargs["x2"], kwargs["y2"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "mousemove", str(x1), str(y1),
-                                "mousedown", "1", "mousemove", str(x2), str(y2),
-                                "mouseup", "1"],
-                               capture_output=True, timeout=10)
-            else:
-                subprocess.run(["ydotool", "mousemove", "-a", str(x1), str(y1)],
-                               capture_output=True, timeout=5)
-                subprocess.run(["ydotool", "mousedown", "1"],
-                               capture_output=True, timeout=5)
-                subprocess.run(["ydotool", "mousemove", "-a", str(x2), str(y2)],
-                               capture_output=True, timeout=5)
-                subprocess.run(["ydotool", "mouseup", "1"],
-                               capture_output=True, timeout=5)
-
-        elif action == "focus":
-            title = kwargs["title"]
-            if tool == "xdotool":
-                subprocess.run(["xdotool", "search", "--name", title,
-                                "windowactivate", "--sync"],
-                               capture_output=True, timeout=10)
-
-        return True
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-        print(f"  Error: GUI input failed: {e}", file=sys.stderr)
-        return False
-
+# ── GUI capture (Pro) ─────────────────────────────────────────────────────
 
 def parse_gui_steps(text):
     """Parse a GUI steps block into a list of action dicts.
@@ -1402,8 +999,6 @@ def parse_gui_steps(text):
       screenshot --region <x>,<y> <w>x<h> [name]  — capture a region
       screenshot --window <title> [name]      — capture a specific window
       window-screenshot <title> [name]        — capture specific window (alias)
-      record start [name]                     — start screen recording
-      record stop                             — stop recording → auto-convert to GIF
       sleep <seconds>                         — wait N seconds
     """
     steps = []
@@ -1470,13 +1065,6 @@ def parse_gui_steps(text):
             title = ws_parts[0] if ws_parts else ""
             name = ws_parts[1] if len(ws_parts) > 1 else None
             steps.append({"action": "window-screenshot", "title": title, "name": name})
-        elif action == "record":
-            rec_parts = args.split(None, 1)
-            if rec_parts and rec_parts[0] == "stop":
-                steps.append({"action": "record_stop"})
-            else:
-                name = rec_parts[1] if len(rec_parts) > 1 else None
-                steps.append({"action": "record_start", "name": name})
         elif action == "sleep":
             steps.append({"action": "sleep", "seconds": float(args)})
         else:
@@ -1485,164 +1073,12 @@ def parse_gui_steps(text):
     return steps
 
 
-def _find_screen_recorder():
-    """Find an available screen recorder for the current display server.
-
-    Prefers screenshot-loop method (works everywhere screenshots work)
-    over screencast APIs which have compositor-specific issues.
-    """
-    # Screenshot-loop works on any display server where screenshots work
-    # This is the most reliable method
-    return "screenshot-loop"
 
 
 def run_gui_steps(steps, assets_dir, name_prefix="gui"):
-    """Execute GUI automation steps. Returns list of generated asset paths."""
-    display = _detect_display_server()
-    if not display:
-        print("  Error: No display server detected (X11 or Wayland required for GUI capture)",
-              file=sys.stderr)
-        return []
-
-    assets = []
-    screenshot_count = 0
-    recording_proc = None
-    recording_path = None
-    ok = "\033[0;32m[OK]\033[0m"
-    err = "\033[0;31m[ERR]\033[0m"
-
-    for step in steps:
-        action = step["action"]
-
-        if action == "launch":
-            try:
-                subprocess.Popen(step["command"], shell=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(2)  # wait for app to start
-            except Exception as e:
-                print(f"  {err} Launch failed: {e}", file=sys.stderr)
-
-        elif action == "focus":
-            _gui_input("focus", title=step["title"])
-            time.sleep(0.5)
-
-        elif action == "click":
-            _gui_input("click", x=step["x"], y=step["y"])
-            time.sleep(0.3)
-
-        elif action == "type":
-            _gui_input("type", text=step["text"])
-
-        elif action == "key":
-            _gui_input("key", key=step["key"])
-
-        elif action == "move":
-            _gui_input("move", x=step["x"], y=step["y"])
-
-        elif action == "drag":
-            _gui_input("drag", x1=step["x1"], y1=step["y1"],
-                       x2=step["x2"], y2=step["y2"])
-
-        elif action == "screenshot":
-            screenshot_count += 1
-            shot_name = step.get("name") or f"{screenshot_count:02d}"
-            shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
-            region = step.get("region")  # (x, y, w, h) or None
-            if _gui_screenshot(shot_path, region=region):
-                assets.append({"type": "screenshot", "path": shot_path})
-                print(f"  {ok} {shot_path}")
-            else:
-                print(f"  {err} Failed: {shot_path}", file=sys.stderr)
-
-        elif action == "window-screenshot":
-            screenshot_count += 1
-            shot_name = step.get("name") or f"{screenshot_count:02d}"
-            shot_path = os.path.join(assets_dir, f"{name_prefix}-{shot_name}.png")
-            if _gui_window_screenshot(step["title"], shot_path):
-                assets.append({"type": "screenshot", "path": shot_path})
-                print(f"  {ok} {shot_path}")
-            else:
-                print(f"  {err} Failed: {shot_path}", file=sys.stderr)
-
-        elif action == "record_start":
-            rec_name = step.get("name") or "recording"
-            recording_path = os.path.join(assets_dir, f"{name_prefix}-{rec_name}.gif")
-            # Use screenshot-loop: capture frames as fast as possible
-            # Store frame paths in recording_proc as a list
-            import threading
-            recording_frames = []
-            recording_stop = threading.Event()
-            frames_dir = os.path.join(assets_dir, f".frames-{rec_name}")
-            os.makedirs(frames_dir, exist_ok=True)
-
-            def _capture_loop():
-                frame_num = 0
-                silent_env = dict(os.environ, CANBERRA_FORCE_SOFTFAIL="1")
-                while not recording_stop.is_set():
-                    frame_path = os.path.join(frames_dir, f"frame-{frame_num:04d}.png")
-                    if _gui_screenshot(frame_path):
-                        recording_frames.append(frame_path)
-                    frame_num += 1
-                    # ~5 fps capture rate
-                    recording_stop.wait(0.2)
-
-            recording_thread = threading.Thread(target=_capture_loop, daemon=True)
-            recording_thread.start()
-            recording_proc = (recording_thread, recording_stop, recording_frames,
-                              frames_dir, recording_path)
-            print(f"  Recording started (screenshot capture) → {recording_path}")
-
-        elif action == "record_stop":
-            if recording_proc and isinstance(recording_proc, tuple):
-                rec_thread, rec_stop, rec_frames, frames_dir, gif_out = recording_proc
-                rec_stop.set()
-                rec_thread.join(timeout=5)
-
-                if rec_frames:
-                    print(f"  Captured {len(rec_frames)} frames")
-                    # Compile frames to GIF using ffmpeg
-                    try:
-                        result = subprocess.run([
-                            "ffmpeg", "-y", "-framerate", "5",
-                            "-i", os.path.join(frames_dir, "frame-%04d.png"),
-                            "-vf", "scale=800:-1:flags=lanczos",
-                            "-loop", "0", gif_out
-                        ], capture_output=True, text=True, timeout=120)
-                        if result.returncode == 0 and os.path.exists(gif_out):
-                            assets.append({"type": "video", "path": gif_out})
-                            print(f"  {ok} {gif_out}")
-                        else:
-                            print(f"  {err} GIF compilation failed: {result.stderr[:200]}",
-                                  file=sys.stderr)
-                    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-                        print(f"  {err} ffmpeg error: {e}", file=sys.stderr)
-
-                    # Clean up frames
-                    import shutil
-                    shutil.rmtree(frames_dir, ignore_errors=True)
-                else:
-                    print(f"  {err} No frames captured", file=sys.stderr)
-
-                recording_proc = None
-                recording_path = None
-            else:
-                print(f"  {err} No recording in progress", file=sys.stderr)
-
-        elif action == "sleep":
-            time.sleep(step["seconds"])
-
-        elif action == "unknown":
-            print(f"  {err} Unknown GUI action: {step['raw']}", file=sys.stderr)
-
-    # Clean up recording if still running
-    if recording_proc and isinstance(recording_proc, tuple):
-        rec_thread, rec_stop, rec_frames, frames_dir, gif_out = recording_proc
-        rec_stop.set()
-        rec_thread.join(timeout=5)
-        import shutil
-        shutil.rmtree(frames_dir, ignore_errors=True)
-
-    return assets
+    """GUI capture requires md2cast Pro."""
+    _pro_required("GUI capture (<!-- gui -->)")
+    return []
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────
@@ -1855,6 +1291,9 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
             _, lang, code_lines, original_lines, dirs = event
             code_content = "\n".join(code_lines)
             block_count += 1
+            if not _check_block_limit(block_count):
+                output_lines.extend(original_lines)
+                continue
 
             cast_name, cast_path = _generate_block_cast(
                 code_content, lang, dirs, theme, assets_dir,
@@ -1927,17 +1366,19 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
                     output_lines.append("")
 
     output_lines.append("")
-    output_lines.append("---")
-    output_lines.append("")
     output_lines.append(
-        '<sub>Made with [md2cast](https://github.com/markamo/md2cast)</sub>')
+        '<p align="center"><sub>Made with <a href="https://github.com/markamo/md2cast">md2cast</a></sub></p>')
     output_lines.append("")
 
-    return "\n".join(output_lines), block_count
+    generated = min(block_count, FREE_MAX_BLOCKS) if FREE_TIER else block_count
+    return "\n".join(output_lines), generated
 
 
-def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
-    """Generate a self-contained HTML page with embedded asciinema players.
+def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, embed=False):
+    """Generate an HTML page with asciinema players.
+
+    When embed=True, cast data is base64-encoded inline (single-file, no server needed).
+    When embed=False, cast files are in assets_dir (needs HTTP server for file:// access).
 
     Returns the HTML string and the number of players generated.
     """
@@ -1979,6 +1420,8 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
             _, lang, code_lines, original_lines, dirs = event
             code_content = "\n".join(code_lines)
             block_count += 1
+            if not _check_block_limit(block_count):
+                continue
 
             cast_name, cast_path = _generate_block_cast(
                 code_content, lang, dirs, theme, assets_dir,
@@ -1986,14 +1429,21 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
 
             print(f"  {ok} {cast_path}")
 
-            rel_cast = os.path.join(os.path.basename(assets_dir), f"{cast_name}.cast")
+            if embed:
+                import base64
+                with open(cast_path, "r") as cf:
+                    cast_data = cf.read()
+                cast_src = "data:application/json;base64," + base64.b64encode(
+                    cast_data.encode()).decode()
+            else:
+                cast_src = os.path.join(os.path.basename(assets_dir), f"{cast_name}.cast")
             player_id = f"player-{block_count}"
 
             # Collapsible code block + player
             escaped_code = _html_escape(code_content)
             lang_label = lang.upper() if lang else "OUTPUT"
             sections_html.append(f'''<div class="cast-block">
-  <div id="{player_id}" class="player" data-cast-src="{rel_cast}"
+  <div id="{player_id}" class="player" data-cast-src="{cast_src}"
        data-theme="{theme.player_theme or 'monokai'}"
        data-font="{theme.font_family or 'monospace'}"
        data-font-size="{theme.font_size or 16}"
@@ -2056,7 +1506,8 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None):
 
     body = "\n".join(sections_html)
     html = _html_template(page_title or "Documentation", body, theme)
-    return html, block_count
+    generated = min(block_count, FREE_MAX_BLOCKS) if FREE_TIER else block_count
+    return html, generated
 
 
 def _player_rows(code_lines, theme):
@@ -2212,7 +1663,7 @@ document.addEventListener('DOMContentLoaded', function() {{
   }});
 }});
 </script>
-<footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center;font-size:0.8rem;color:var(--muted);">
+<footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
   Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
 </footer>
 </body>
@@ -2259,7 +1710,9 @@ def main():
     parser.add_argument("--render", action="store_true",
                         help="Generate a new Markdown with embedded GIF screencasts for each code block")
     parser.add_argument("--render-html", action="store_true",
-                        help="Generate an HTML page with embedded asciinema players for each code block")
+                        help="Generate an HTML page with asciinema players for each code block")
+    parser.add_argument("--embed", action="store_true",
+                        help="Embed cast data inline in HTML (single file, no server needed). Use with --render-html")
     parser.add_argument("--init-theme", action="store_true",
                         help="Print default theme JSON and exit (redirect to a file to customize)")
     parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
@@ -2345,6 +1798,7 @@ def main():
             assets_dir=assets_dir,
             execute=args.execute,
             working_dir=args.working_dir,
+            embed=args.embed,
         )
 
         with open(out_html, "w") as f:
@@ -2352,7 +1806,10 @@ def main():
 
         ok = "\033[0;32m[OK]\033[0m"
         print(f"\n  {ok} {out_html}  ({player_count} players)")
-        print(f"  Assets: {assets_dir}/")
+        if args.embed:
+            print(f"  Self-contained — open directly in any browser")
+        else:
+            print(f"  Assets: {assets_dir}/")
         print(f"  Open:   xdg-open {out_html}")
         print()
         return
@@ -2365,6 +1822,7 @@ def main():
         return
 
     sections = split_sections(blocks)
+    sections = _check_section_limit(sections)
 
     # Section filter
     if args.section:
