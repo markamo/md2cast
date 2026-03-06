@@ -1642,6 +1642,13 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
                     output_lines.append(f"![{alt_text}]({rel_path})")
                     output_lines.append("")
 
+    output_lines.append("")
+    output_lines.append("---")
+    output_lines.append("")
+    output_lines.append(
+        '<sub>Made with [md2cast](https://github.com/markamo/md2cast)</sub>')
+    output_lines.append("")
+
     return "\n".join(output_lines), block_count
 
 
@@ -1880,6 +1887,9 @@ def _html_template(title, body, theme):
 <body>
 {body}
 <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js"></script>
+<footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center;font-size:0.8rem;color:var(--muted);">
+  Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
+</footer>
 </body>
 </html>'''
 
