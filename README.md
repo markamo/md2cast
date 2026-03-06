@@ -4,16 +4,35 @@ Convert Markdown documentation into [asciinema](https://asciinema.org) screencas
 
 Write your tutorial in Markdown, run `md2cast`, get a `.cast` file you can play, embed, or convert to GIF.
 
+## Prerequisites
+
+- **Python 3.6+** — md2cast itself has no other dependencies
+- **asciinema** — for playing back `.cast` files ([asciinema.org](https://asciinema.org))
+- **agg** *(optional)* — for converting `.cast` to GIF ([github.com/asciinema/agg](https://github.com/asciinema/agg))
+
+```bash
+# Install asciinema
+pip install asciinema
+# or: sudo apt install asciinema  (Debian/Ubuntu)
+# or: brew install asciinema      (macOS)
+
+# Install agg (optional, for GIF export)
+# Download binary from https://github.com/asciinema/agg/releases
+# or build from source:
+cargo install --git https://github.com/asciinema/agg
+```
+
 ## Install
 
 ```bash
-# Copy the script
+# Using the install script
+./install.sh
+
+# Or manually
 sudo cp md2cast /usr/local/bin/
-# Or symlink
-sudo ln -s $(pwd)/md2cast /usr/local/bin/md2cast
 ```
 
-No dependencies — just Python 3.6+.
+To uninstall: `./uninstall.sh`
 
 ## Usage
 
