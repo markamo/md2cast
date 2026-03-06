@@ -414,6 +414,10 @@ class CastWriter:
             self._emit(ch)
             self.time += delay
 
+    def count_lines(self):
+        """Count total newlines emitted — the actual row usage."""
+        return sum(text.count("\n") for _, _, text in self.events)
+
     def clear(self):
         """Clear screen."""
         self._emit("\033[2J\033[H")
@@ -1494,6 +1498,13 @@ def _generate_block_cast(code_content, lang, dirs, theme, assets_dir, index,
     else:
         renderer.render_output(code_content, lang=lang)
 
+    # After rendering, resize rows to fit actual content (execution may produce more output)
+    actual_lines = cast.count_lines() + 3  # +3 for padding
+    if actual_lines > block_rows:
+        block_rows = min(actual_lines, 200)  # cap at 200 to avoid absurd heights
+        block_theme = _theme_with_rows(theme, block_rows)
+        cast.theme = block_theme
+
     # Watermark: dim "md2cast" at bottom-right of last frame
     watermark = "md2cast"
     pad = block_theme.cols - len(watermark) - 1
@@ -1822,7 +1833,7 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
        data-font-size="{theme.font_size or 16}"
        data-idle="{theme.idle_time_limit or 3}"
        data-cols="{theme.cols}"
-       data-rows="{_player_rows(code_lines, theme)}"></div>
+       data-rows="{_player_rows(code_lines, theme, cast_path)}"></div>
   <div class="code-copy">
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code class="language-{lang or 'text'}">{escaped_code}</code></pre>
@@ -1883,10 +1894,20 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
     return html, generated
 
 
-def _player_rows(code_lines, theme):
-    """Calculate appropriate player rows — just enough to show the content."""
-    # Commands: prompt line + output lines; output: just the lines
-    # Add a few rows for padding, cap at theme.rows
+def _player_rows(code_lines, theme, cast_path=None):
+    """Calculate appropriate player rows — just enough to show the content.
+
+    If cast_path is given, read the actual height from the cast header
+    (handles executed blocks with more output than source lines).
+    """
+    if cast_path:
+        try:
+            with open(cast_path, "r") as f:
+                header = json.loads(f.readline())
+                return header.get("height", theme.rows)
+        except Exception:
+            pass
+    # Fallback: estimate from source lines
     return min(len(code_lines) + 5, theme.rows)
 
 
