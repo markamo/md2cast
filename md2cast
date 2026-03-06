@@ -42,6 +42,7 @@ Directives (HTML comments — invisible in rendered Markdown):
   <!-- type-delay 0.01 --> → override typing speed for the next block
   <!-- prompt # -->       → change prompt character for the next block (e.g., root shell)
   <!-- output -->         → force next ```bash block to display as static output
+  <!-- view-exec -->     → show commands as preview, then execute each with real output
   <!-- clear -->          → clear screen (alternative to ---)
 """
 
@@ -370,6 +371,11 @@ def parse_markdown(text):
             i += 1
             continue
 
+        if re.match(r'^\s*<!--\s*view-exec\s*-->\s*$', line):
+            pending_directives["view-exec"] = True
+            i += 1
+            continue
+
         td_match = re.match(r'^\s*<!--\s*type-delay\s+(\d+(?:\.\d+)?)\s*-->\s*$', line)
         if td_match:
             pending_directives["type-delay"] = float(td_match.group(1))
@@ -617,6 +623,67 @@ class Renderer:
 
             self.cast.pause(t.output_pause)
 
+    def render_view_exec(self, command, directives=None):
+        """Two-phase display: show all commands as a static preview, then execute each one.
+
+        Phase 1: Display the entire block as static code (dimmed, no prompt)
+        Phase 2: Re-run each command with prompt, typing, and real execution
+        """
+        t = self.t
+        dirs = directives or {}
+        type_delay = dirs.get("type-delay", t.type_delay)
+        prompt_char = dirs.get("prompt", "$")
+
+        lines = [l.strip() for l in command.strip().split("\n")]
+        cmd_lines = [l for l in lines if l and not l.startswith("#")]
+
+        # Phase 1: Show all commands as a static preview
+        self.cast.write_line("")
+        self.cast.write_line(f"  {t.narration}# Commands to run:{t.nc}")
+        self.cast.write_line(f"  {t.section_border}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500{t.nc}")
+        for line in cmd_lines:
+            self.cast.write_line(f"  {t.narration}  {line}{t.nc}")
+        self.cast.write_line(f"  {t.section_border}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500{t.nc}")
+        self.cast.pause(t.section_pause)
+        self.cast.write_line("")
+
+        # Phase 2: Execute each command
+        for line in lines:
+            if not line or line.startswith("#"):
+                self.cast.write_line(f"  {t.narration}{line}{t.nc}")
+                self.cast.pause(0.3)
+                continue
+
+            self.cast.write(f"{t.prompt}{prompt_char} {t.nc}")
+            if t.command:
+                self.cast.write(t.command)
+            self.cast.type_text(line, delay=type_delay)
+            if t.command:
+                self.cast.write(t.nc)
+            self.cast.pause(t.cmd_pause)
+            self.cast.write_line("")
+
+            try:
+                result = subprocess.run(
+                    line, shell=True, capture_output=True, text=True,
+                    timeout=30, cwd=self.working_dir
+                )
+                output = result.stdout
+                if result.stderr:
+                    output += result.stderr
+                if output.strip():
+                    for out_line in output.rstrip().split("\n"):
+                        if t.output:
+                            self.cast.write_line(f"{t.output}{out_line}{t.nc}")
+                        else:
+                            self.cast.write_line(out_line)
+            except subprocess.TimeoutExpired:
+                self.cast.write_line(f"{t.error}(command timed out){t.nc}")
+            except Exception as e:
+                self.cast.write_line(f"{t.error}(error: {e}){t.nc}")
+
+            self.cast.pause(t.output_pause)
+
     def render_output(self, text):
         """Show output text (not typed, shown at once)."""
         t = self.t
@@ -653,7 +720,10 @@ class Renderer:
                     self.render_text(block.content)
 
             elif block.kind == "code":
-                self.render_command(block.content, directives=block.directives)
+                if block.directives.get("view-exec"):
+                    self.render_view_exec(block.content, directives=block.directives)
+                else:
+                    self.render_command(block.content, directives=block.directives)
 
             elif block.kind == "output":
                 self.render_output(block.content)

@@ -97,6 +97,7 @@ HTML comment directives give per-block control without breaking normal Markdown 
 | `<!-- type-delay 0.01 -->` | Override typing speed for the next block |
 | `<!-- prompt # -->` | Change prompt character (e.g., `#` for root, `>>>` for Python) |
 | `<!-- output -->` | Force next ` ```bash ` block to display as static output |
+| `<!-- view-exec -->` | Show commands as preview first, then execute each one with real output |
 | `<!-- clear -->` | Clear screen (alternative to `---`) |
 | `<!-- skip -->` | Skip the next block entirely |
 | `<!-- pause 3 -->` | Pause for N seconds |
