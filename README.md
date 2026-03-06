@@ -1,44 +1,21 @@
-# md2cast
+# md2cast v0.3.0
 
 Convert Markdown documentation into [asciinema](https://asciinema.org) screencasts.
 
 Write your tutorial in Markdown, run `md2cast`, get a `.cast` file you can play, embed, or convert to GIF.
 
-## Prerequisites
-
-- **Python 3.6+** — md2cast itself has no other dependencies
-- **asciinema** — for playing back `.cast` files ([asciinema.org](https://asciinema.org))
-- **agg** *(optional)* — for converting `.cast` to GIF ([github.com/asciinema/agg](https://github.com/asciinema/agg))
-- **pygments** *(optional)* — for syntax highlighting in code blocks (`pip install pygments`)
-- **playwright** *(optional)* — for browser capture (`pip install playwright && playwright install chromium`)
-- **ffmpeg** *(optional)* — for converting browser video recordings to GIF
-- **xdotool** or **ydotool** *(optional)* — for GUI desktop capture (`apt install xdotool` or `apt install ydotool`)
-
-```bash
-# Install asciinema
-pip install asciinema
-# or: sudo apt install asciinema  (Debian/Ubuntu)
-# or: brew install asciinema      (macOS)
-
-# Install agg (optional, for GIF export)
-# Download prebuilt binary from https://github.com/asciinema/agg/releases
-# or via package manager:
-# brew install agg                (macOS)
-# nix-env -i agg                 (Nix)
-# cargo install --git https://github.com/asciinema/agg  (from source)
-```
-
 ## Install
 
 ```bash
-# Using the install script
-./install.sh
-
-# Or manually
-sudo cp md2cast /usr/local/bin/
+pip install md2cast
 ```
 
-To uninstall: `./uninstall.sh`
+Installs `md2cast`, `asciinema`, and `pygments` automatically.
+
+**Optional:**
+- **agg** — for GIF export (`--gif`). Download from [github.com/asciinema/agg/releases](https://github.com/asciinema/agg/releases)
+- **playwright** — for browser capture (Pro). `pip install playwright && playwright install chromium`
+- **xdotool** / **ydotool** — for GUI capture (Pro). `apt install xdotool`
 
 ## Usage
 
