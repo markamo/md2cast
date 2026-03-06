@@ -207,7 +207,7 @@ nav{
 .md-hero{
   padding:1.25rem 1.5rem;
   font-family:var(--mono);font-size:.78rem;line-height:1.85;
-  min-height:340px;max-height:380px;overflow:hidden;
+  min-height:340px;max-height:380px;overflow-y:auto;scrollbar-width:none;
   color:var(--muted);
 }
 .md-hero .line{display:block;transition:all .3s}
@@ -1265,11 +1265,13 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
   }
 
   function highlightSource(step){
+    var lastActive=null;
     source.querySelectorAll('[data-step]').forEach(function(el){
       var s=parseFloat(el.dataset.step);
-      if(s===Math.floor(step)) el.classList.add('md-active');
+      if(s===Math.floor(step)){el.classList.add('md-active');lastActive=el;}
       else el.classList.remove('md-active');
     });
+    if(lastActive) lastActive.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
   function addLine(html){
@@ -1284,6 +1286,7 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
     if(running)return;
     running=true;
     cast.innerHTML='';
+    source.scrollTop=0;
     source.querySelectorAll('.md-active').forEach(function(el){el.classList.remove('md-active')});
     var fi=0;
 
