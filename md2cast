@@ -18,7 +18,8 @@ Usage:
   md2cast input.md --section 3            # only section 3
   md2cast input.md --split                # one .cast per ## section
   md2cast input.md --list                 # list sections
-  md2cast input.md --cols 120 --rows 40   # custom terminal size
+  md2cast input.md --theme dark.json      # custom theme
+  md2cast input.md --init-theme           # generate default theme file
 
 Markdown mapping:
   # Heading          → title card (clear, box, pause)
@@ -42,27 +43,202 @@ import subprocess
 import sys
 import time
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-# ── ANSI codes ──────────────────────────────────────────────────────────────
+# ── Theme ──────────────────────────────────────────────────────────────────
 
-BOLD = "\033[1m"
-DIM = "\033[2m"
-GREEN = "\033[0;32m"
-CYAN = "\033[0;36m"
-YELLOW = "\033[1;33m"
-RED = "\033[0;31m"
-MAGENTA = "\033[0;35m"
-NC = "\033[0m"
+# ANSI 256-color: \033[38;5;Nm (foreground), \033[48;5;Nm (background)
+# ANSI true color: \033[38;2;R;G;Bm (fg), \033[48;2;R;G;Bm (bg)
+
+def _parse_color(value):
+    """Convert a color spec to an ANSI escape sequence.
+
+    Accepts:
+      - Named:  "green", "cyan", "bold", "dim", "red", "yellow", "magenta", "white", "blue"
+      - Hex:    "#00ff88" → true-color (24-bit)
+      - 256:    "256:39" → 256-color palette
+      - ANSI:   "0;32" or "1;36" → raw SGR code
+      - Reset:  "reset" or "" → \\033[0m
+    """
+    if not value or value == "reset":
+        return "\033[0m"
+    if value == "bold":
+        return "\033[1m"
+    if value == "dim":
+        return "\033[2m"
+
+    # Named colors
+    named = {
+        "black": "0;30", "red": "0;31", "green": "0;32", "yellow": "1;33",
+        "blue": "0;34", "magenta": "0;35", "cyan": "0;36", "white": "0;37",
+        "bright_black": "0;90", "bright_red": "0;91", "bright_green": "0;92",
+        "bright_yellow": "0;93", "bright_blue": "0;94", "bright_magenta": "0;95",
+        "bright_cyan": "0;96", "bright_white": "0;97",
+    }
+    if value in named:
+        return f"\033[{named[value]}m"
+
+    # Hex color → true color
+    hex_match = re.match(r'^#([0-9a-fA-F]{6})$', value)
+    if hex_match:
+        h = hex_match.group(1)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"\033[38;2;{r};{g};{b}m"
+
+    # 256-color: "256:N"
+    c256_match = re.match(r'^256:(\d+)$', value)
+    if c256_match:
+        return f"\033[38;5;{c256_match.group(1)}m"
+
+    # Raw SGR code: "0;32", "1;36", etc.
+    if re.match(r'^[\d;]+$', value):
+        return f"\033[{value}m"
+
+    return f"\033[{value}m"
+
+
+def _parse_bg_color(value):
+    """Convert a color spec to an ANSI background escape sequence."""
+    if not value or value == "reset":
+        return ""
+
+    hex_match = re.match(r'^#([0-9a-fA-F]{6})$', value)
+    if hex_match:
+        h = hex_match.group(1)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"\033[48;2;{r};{g};{b}m"
+
+    c256_match = re.match(r'^256:(\d+)$', value)
+    if c256_match:
+        return f"\033[48;5;{c256_match.group(1)}m"
+
+    return ""
+
+
+DEFAULT_THEME = {
+    "terminal": {
+        "cols": 110,
+        "rows": 35,
+        "shell": "/bin/bash",
+        "env": {
+            "TERM": "xterm-256color"
+        }
+    },
+    "player": {
+        "theme": "monokai",
+        "font_family": "JetBrains Mono, Fira Code, Menlo, monospace",
+        "font_size": 16,
+        "idle_time_limit": 3
+    },
+    "colors": {
+        "prompt": "green",
+        "title_border": "cyan",
+        "title_text": "bold",
+        "section_border": "cyan",
+        "section_text": "bold",
+        "subsection": "bold",
+        "narration": "dim",
+        "quote": "yellow",
+        "error": "red",
+        "output": "",
+        "command": ""
+    },
+    "timing": {
+        "type_delay": 0.03,
+        "cmd_pause": 0.8,
+        "output_pause": 1.5,
+        "section_pause": 2.0,
+        "text_pause": 0.8,
+        "end_pause": 2.0
+    }
+}
+
+
+class Theme:
+    """Holds resolved colors and timing from a theme config."""
+
+    def __init__(self, config=None):
+        cfg = _deep_merge(DEFAULT_THEME, config or {})
+
+        # Terminal
+        t = cfg["terminal"]
+        self.cols = t["cols"]
+        self.rows = t["rows"]
+        self.shell = t.get("shell", "/bin/bash")
+        self.env = t.get("env", {})
+
+        # Player (asciinema header metadata)
+        p = cfg["player"]
+        self.player_theme = p.get("theme", "")
+        self.font_family = p.get("font_family", "")
+        self.font_size = p.get("font_size", 0)
+        self.idle_time_limit = p.get("idle_time_limit", 0)
+
+        # Colors → resolved ANSI escapes
+        c = cfg["colors"]
+        self.prompt = _parse_color(c.get("prompt", "green"))
+        self.title_border = _parse_color(c.get("title_border", "cyan"))
+        self.title_text = _parse_color(c.get("title_text", "bold"))
+        self.section_border = _parse_color(c.get("section_border", "cyan"))
+        self.section_text = _parse_color(c.get("section_text", "bold"))
+        self.subsection = _parse_color(c.get("subsection", "bold"))
+        self.narration = _parse_color(c.get("narration", "dim"))
+        self.quote = _parse_color(c.get("quote", "yellow"))
+        self.error = _parse_color(c.get("error", "red"))
+        self.output = _parse_color(c.get("output", ""))
+        self.command = _parse_color(c.get("command", ""))
+        self.nc = "\033[0m"
+
+        # Timing
+        tm = cfg["timing"]
+        self.type_delay = tm.get("type_delay", 0.03)
+        self.cmd_pause = tm.get("cmd_pause", 0.8)
+        self.output_pause = tm.get("output_pause", 1.5)
+        self.section_pause = tm.get("section_pause", 2.0)
+        self.text_pause = tm.get("text_pause", 0.8)
+        self.end_pause = tm.get("end_pause", 2.0)
+
+
+def _deep_merge(base, override):
+    """Deep merge override into base (returns new dict)."""
+    result = dict(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
+def load_theme(path):
+    """Load a theme from a JSON file."""
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+def find_theme(input_path):
+    """Auto-discover a theme file next to the input markdown."""
+    # Look for: md2cast.json, .md2cast.json, md2cast-theme.json
+    candidates = [
+        os.path.join(os.path.dirname(input_path) or ".", "md2cast.json"),
+        os.path.join(os.path.dirname(input_path) or ".", ".md2cast.json"),
+        os.path.join(os.path.dirname(input_path) or ".", "md2cast-theme.json"),
+        os.path.expanduser("~/.config/md2cast/theme.json"),
+        os.path.expanduser("~/.md2cast.json"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
+
 
 # ── Asciinema v2 cast writer ───────────────────────────────────────────────
 
 class CastWriter:
     """Generates asciinema v2 .cast format."""
 
-    def __init__(self, cols=110, rows=35, title=""):
-        self.cols = cols
-        self.rows = rows
+    def __init__(self, theme, title=""):
+        self.theme = theme
         self.title = title
         self.events = []
         self.time = 0.0
@@ -83,8 +259,9 @@ class CastWriter:
         """Write a line to terminal."""
         self._emit(text + "\r\n")
 
-    def type_text(self, text, delay=0.03):
+    def type_text(self, text, delay=None):
         """Type text character by character."""
+        delay = delay or self.theme.type_delay
         for ch in text:
             self._emit(ch)
             self.time += delay
@@ -95,14 +272,23 @@ class CastWriter:
 
     def save(self, path):
         """Write the .cast file."""
+        t = self.theme
         header = {
             "version": 2,
-            "width": self.cols,
-            "height": self.rows,
+            "width": t.cols,
+            "height": t.rows,
         }
         if self.title:
             header["title"] = self.title
         header["timestamp"] = int(time.time())
+
+        # Player metadata (used by asciinema web player / agg)
+        if t.env:
+            header["env"] = t.env
+        if t.player_theme:
+            header["theme"] = {"name": t.player_theme}
+        if t.idle_time_limit:
+            header["idle_time_limit"] = t.idle_time_limit
 
         with open(path, "w") as f:
             f.write(json.dumps(header) + "\n")
@@ -138,15 +324,12 @@ def parse_markdown(text):
             continue
 
         if re.match(r'^\s*<!--\s*skip\s*-->\s*$', line):
-            # Skip until next non-skip content or end of skip block
             i += 1
-            # Skip the next block (code block or paragraph)
             if i < len(lines) and lines[i].startswith("```"):
-                # Skip entire code block
                 i += 1
                 while i < len(lines) and not lines[i].startswith("```"):
                     i += 1
-                i += 1  # skip closing ```
+                i += 1
             continue
 
         # Fenced code block
@@ -163,12 +346,6 @@ def parse_markdown(text):
             content = "\n".join(code_lines)
             if lang in ("bash", "sh", "shell", "console", "zsh"):
                 blocks.append(Block("code", content, lang=lang))
-            elif lang in ("yaml", "json", "toml", "python", "py", "rust",
-                          "javascript", "js", "text", "ini", "conf", "cfg"):
-                blocks.append(Block("output", content, lang=lang))
-            elif lang == "":
-                # No language — treat as output
-                blocks.append(Block("output", content))
             else:
                 blocks.append(Block("output", content, lang=lang))
             continue
@@ -221,15 +398,10 @@ def parse_markdown(text):
 
 def strip_md(text):
     """Strip markdown formatting for plain display."""
-    # Bold
     text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-    # Italic
     text = re.sub(r'\*(.+?)\*', r'\1', text)
-    # Inline code
     text = re.sub(r'`(.+?)`', r'\1', text)
-    # Links [text](url)
     text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
-    # Images
     text = re.sub(r'!\[.*?\]\(.+?\)', '', text)
     return text.strip()
 
@@ -257,22 +429,17 @@ def word_wrap(text, width=100):
 class Renderer:
     """Renders parsed blocks into a CastWriter."""
 
-    def __init__(self, cast, execute=False, type_delay=0.03, cmd_pause=0.8,
-                 output_pause=1.5, section_pause=2.0, text_pause=0.8,
-                 working_dir=None):
+    def __init__(self, cast, theme, execute=False, working_dir=None):
         self.cast = cast
+        self.t = theme
         self.execute = execute
-        self.type_delay = type_delay
-        self.cmd_pause = cmd_pause
-        self.output_pause = output_pause
-        self.section_pause = section_pause
-        self.text_pause = text_pause
         self.working_dir = working_dir
 
     def render_title_card(self, title, subtitle=""):
         """Render a title card with box drawing."""
         self.cast.clear()
         self.cast.pause(0.3)
+        t = self.t
 
         w = 60
         title_clean = strip_md(title)
@@ -280,72 +447,80 @@ class Renderer:
 
         bar = "\u2550" * w
         self.cast.write_line("")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2554{bar}\u2557{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{' ' * w}{BOLD}{CYAN}\u2551{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{BOLD}   {title_clean:<{w-3}}{CYAN}\u2551{NC}")
+        self.cast.write_line(f"  {t.title_border}\u2554{bar}\u2557{t.nc}")
+        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{' ' * w}{t.title_border}\u2551{t.nc}")
+        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{t.title_text}   {title_clean:<{w-3}}{t.title_border}\u2551{t.nc}")
         if sub_clean:
-            self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{DIM}   {sub_clean:<{w-3}}{CYAN}\u2551{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2551{NC}{' ' * w}{BOLD}{CYAN}\u2551{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u255a{bar}\u255d{NC}")
+            self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{t.narration}   {sub_clean:<{w-3}}{t.title_border}\u2551{t.nc}")
+        self.cast.write_line(f"  {t.title_border}\u2551{t.nc}{' ' * w}{t.title_border}\u2551{t.nc}")
+        self.cast.write_line(f"  {t.title_border}\u255a{bar}\u255d{t.nc}")
         self.cast.write_line("")
-        self.cast.pause(self.section_pause)
+        self.cast.pause(t.section_pause)
 
     def render_section(self, title):
         """Render a section divider."""
         self.cast.clear()
         self.cast.pause(0.3)
+        t = self.t
 
         title_clean = strip_md(title)
         bar = "\u2500" * (len(title_clean) + 4)
         self.cast.write_line("")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u250c{bar}\u2510{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2502{NC}{BOLD}  {title_clean}  {CYAN}\u2502{NC}")
-        self.cast.write_line(f"  {BOLD}{CYAN}\u2514{bar}\u2518{NC}")
+        self.cast.write_line(f"  {t.section_border}\u250c{bar}\u2510{t.nc}")
+        self.cast.write_line(f"  {t.section_border}\u2502{t.nc}{t.section_text}  {title_clean}  {t.section_border}\u2502{t.nc}")
+        self.cast.write_line(f"  {t.section_border}\u2514{bar}\u2518{t.nc}")
         self.cast.write_line("")
-        self.cast.pause(self.section_pause)
+        self.cast.pause(t.section_pause)
 
     def render_subsection(self, title):
         """Render a subsection label."""
+        t = self.t
         self.cast.write_line("")
         title_clean = strip_md(title)
-        self.cast.write_line(f"  {BOLD}{title_clean}{NC}")
+        self.cast.write_line(f"  {t.subsection}{title_clean}{t.nc}")
         self.cast.write_line("")
         self.cast.pause(0.8)
 
     def render_text(self, text):
         """Render narrated text as dimmed comments."""
+        t = self.t
         clean = strip_md(text)
-        lines = word_wrap(clean, 95)
+        lines = word_wrap(clean, t.cols - 10)
         self.cast.write_line("")
         for line in lines:
-            self.cast.write_line(f"  {DIM}# {line}{NC}")
-        self.cast.pause(self.text_pause + len(lines) * 0.3)
+            self.cast.write_line(f"  {t.narration}# {line}{t.nc}")
+        self.cast.pause(t.text_pause + len(lines) * 0.3)
         self.cast.write_line("")
 
     def render_quote(self, text):
         """Render a blockquote as a highlighted note."""
+        t = self.t
         clean = strip_md(text)
-        lines = word_wrap(clean, 90)
+        lines = word_wrap(clean, t.cols - 15)
         self.cast.write_line("")
         for line in lines:
-            self.cast.write_line(f"  {YELLOW}\u2502 {line}{NC}")
-        self.cast.pause(self.text_pause + len(lines) * 0.4)
+            self.cast.write_line(f"  {t.quote}\u2502 {line}{t.nc}")
+        self.cast.pause(t.text_pause + len(lines) * 0.4)
         self.cast.write_line("")
 
     def render_command(self, command):
         """Type and optionally execute a bash command."""
+        t = self.t
         for line in command.strip().split("\n"):
             line = line.strip()
             if not line or line.startswith("#"):
-                # Comment line — show dimmed
-                self.cast.write_line(f"  {DIM}{line}{NC}")
+                self.cast.write_line(f"  {t.narration}{line}{t.nc}")
                 self.cast.pause(0.3)
                 continue
 
-            # Type the command with green $ prompt
-            self.cast.write(f"{GREEN}$ {NC}")
-            self.cast.type_text(line, delay=self.type_delay)
-            self.cast.pause(self.cmd_pause)
+            # Type the command with prompt
+            self.cast.write(f"{t.prompt}$ {t.nc}")
+            if t.command:
+                self.cast.write(t.command)
+            self.cast.type_text(line)
+            if t.command:
+                self.cast.write(t.nc)
+            self.cast.pause(t.cmd_pause)
             self.cast.write_line("")
 
             if self.execute:
@@ -359,32 +534,37 @@ class Renderer:
                         output += result.stderr
                     if output.strip():
                         for out_line in output.rstrip().split("\n"):
-                            self.cast.write_line(out_line)
+                            if t.output:
+                                self.cast.write_line(f"{t.output}{out_line}{t.nc}")
+                            else:
+                                self.cast.write_line(out_line)
                 except subprocess.TimeoutExpired:
-                    self.cast.write_line(f"{RED}(command timed out){NC}")
+                    self.cast.write_line(f"{t.error}(command timed out){t.nc}")
                 except Exception as e:
-                    self.cast.write_line(f"{RED}(error: {e}){NC}")
+                    self.cast.write_line(f"{t.error}(error: {e}){t.nc}")
 
-            self.cast.pause(self.output_pause)
+            self.cast.pause(t.output_pause)
 
     def render_output(self, text):
         """Show output text (not typed, shown at once)."""
+        t = self.t
         if not text.strip():
             return
         for line in text.split("\n"):
-            self.cast.write_line(line)
-        self.cast.pause(self.output_pause)
+            if t.output:
+                self.cast.write_line(f"{t.output}{line}{t.nc}")
+            else:
+                self.cast.write_line(line)
+        self.cast.pause(t.output_pause)
 
     def render_blocks(self, blocks):
         """Render a list of blocks."""
-        # Look ahead for subtitle (text right after h1)
         i = 0
         while i < len(blocks):
             block = blocks[i]
 
             if block.kind == "heading":
                 if block.level == 1:
-                    # Look ahead for subtitle text
                     subtitle = ""
                     if i + 1 < len(blocks) and blocks[i + 1].kind in ("text", "quote"):
                         subtitle = blocks[i + 1].content
@@ -395,7 +575,6 @@ class Renderer:
                     self.render_subsection(block.content)
 
             elif block.kind == "text":
-                # Skip if already used as subtitle
                 if i > 0 and blocks[i - 1].kind == "heading" and blocks[i - 1].level == 1:
                     pass  # already shown as subtitle
                 else:
@@ -408,7 +587,6 @@ class Renderer:
                 self.render_output(block.content)
 
             elif block.kind == "quote":
-                # Skip if already used as subtitle
                 if i > 0 and blocks[i - 1].kind == "heading" and blocks[i - 1].level == 1:
                     pass
                 else:
@@ -425,7 +603,7 @@ class Renderer:
 
         # End card
         self.cast.write_line("")
-        self.cast.pause(2)
+        self.cast.pause(self.t.end_pause)
 
 
 # ── Section splitting ──────────────────────────────────────────────────────
@@ -477,10 +655,12 @@ def main():
         epilog="Examples:\n"
                "  md2cast tutorial.md\n"
                "  md2cast tutorial.md --execute --section 3\n"
-               "  md2cast tutorial.md --split -o output-dir/\n",
+               "  md2cast tutorial.md --split -o output-dir/\n"
+               "  md2cast tutorial.md --theme mytheme.json\n"
+               "  md2cast --init-theme > mytheme.json\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("input", help="Markdown file to convert")
+    parser.add_argument("input", nargs="?", help="Markdown file to convert")
     parser.add_argument("-o", "--output", help="Output .cast file or directory (with --split)")
     parser.add_argument("--execute", action="store_true",
                         help="Actually execute bash commands (requires appropriate permissions)")
@@ -489,15 +669,52 @@ def main():
                         help="Generate one .cast per ## section")
     parser.add_argument("--list", action="store_true",
                         help="List sections and exit")
-    parser.add_argument("--cols", type=int, default=110, help="Terminal columns (default: 110)")
-    parser.add_argument("--rows", type=int, default=35, help="Terminal rows (default: 35)")
-    parser.add_argument("--type-delay", type=float, default=0.03,
-                        help="Delay between typed characters (default: 0.03)")
+    parser.add_argument("--cols", type=int, help="Terminal columns (overrides theme)")
+    parser.add_argument("--rows", type=int, help="Terminal rows (overrides theme)")
+    parser.add_argument("--type-delay", type=float,
+                        help="Delay between typed characters (overrides theme)")
     parser.add_argument("--working-dir", "-C", help="Working directory for executed commands")
     parser.add_argument("--title", help="Override cast title")
+    parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
+    parser.add_argument("--init-theme", action="store_true",
+                        help="Print default theme JSON and exit (redirect to a file to customize)")
     parser.add_argument("--version", action="version", version=f"md2cast {__version__}")
 
     args = parser.parse_args()
+
+    # Init theme mode — print default and exit
+    if args.init_theme:
+        print(json.dumps(DEFAULT_THEME, indent=2))
+        return
+
+    if not args.input:
+        parser.error("the following arguments are required: input")
+
+    # Load theme
+    theme_path = args.theme
+    if not theme_path:
+        theme_path = find_theme(args.input)
+
+    theme_config = {}
+    if theme_path:
+        try:
+            theme_config = load_theme(theme_path)
+            if not args.list:
+                print(f"  Using theme: {theme_path}", file=sys.stderr)
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            print(f"Warning: failed to load theme {theme_path}: {e}", file=sys.stderr)
+
+    # CLI overrides → merge into theme config
+    overrides = {}
+    if args.cols:
+        overrides.setdefault("terminal", {})["cols"] = args.cols
+    if args.rows:
+        overrides.setdefault("terminal", {})["rows"] = args.rows
+    if args.type_delay is not None:
+        overrides.setdefault("timing", {})["type_delay"] = args.type_delay
+
+    theme_config = _deep_merge(theme_config, overrides)
+    theme = Theme(theme_config)
 
     # Read input
     try:
@@ -531,19 +748,18 @@ def main():
         out_dir = args.output or os.path.splitext(args.input)[0] + "-casts"
         os.makedirs(out_dir, exist_ok=True)
 
+        ok = "\033[0;32m[OK]\033[0m"
         for i, (title, section_blocks) in enumerate(sections, 1):
             slug = slugify(title)
             outfile = os.path.join(out_dir, f"{i:02d}-{slug}.cast")
             cast_title = args.title or strip_md(title)
 
-            cast = CastWriter(cols=args.cols, rows=args.rows, title=cast_title)
-            renderer = Renderer(
-                cast, execute=args.execute, type_delay=args.type_delay,
-                working_dir=args.working_dir,
-            )
+            cast = CastWriter(theme, title=cast_title)
+            renderer = Renderer(cast, theme, execute=args.execute,
+                                working_dir=args.working_dir)
             renderer.render_blocks(section_blocks)
             cast.save(outfile)
-            print(f"  {GREEN}[OK]{NC} {outfile}  ({strip_md(title)})")
+            print(f"  {ok} {outfile}  ({strip_md(title)})")
 
         print(f"\n  {len(sections)} cast(s) written to {out_dir}/")
         print(f"  Play: asciinema play {out_dir}/<name>.cast")
@@ -562,17 +778,16 @@ def main():
         if args.section:
             target_blocks = sections[0][1]
 
-        cast = CastWriter(cols=args.cols, rows=args.rows, title=cast_title)
-        renderer = Renderer(
-            cast, execute=args.execute, type_delay=args.type_delay,
-            working_dir=args.working_dir,
-        )
+        cast = CastWriter(theme, title=cast_title)
+        renderer = Renderer(cast, theme, execute=args.execute,
+                            working_dir=args.working_dir)
         renderer.render_blocks(target_blocks)
         cast.save(outfile)
 
         duration = cast.time
         event_count = len(cast.events)
-        print(f"\n  {GREEN}[OK]{NC} {outfile}")
+        ok = "\033[0;32m[OK]\033[0m"
+        print(f"\n  {ok} {outfile}")
         print(f"  Duration: {duration:.1f}s  Events: {event_count}")
         print(f"  Play: asciinema play {outfile}")
         print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
