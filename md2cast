@@ -1117,6 +1117,67 @@ def _detect_display_server():
     return None
 
 
+def _portal_screenshot(output_path, err_prefix):
+    """Take a screenshot via the freedesktop D-Bus portal.
+
+    Works on any modern Wayland compositor (GNOME, KDE, etc.)
+    without compositor-specific protocols like wlr-screencopy.
+    """
+    if not _has_command("gdbus"):
+        print(f"  {err_prefix} No screenshot method available. Install: gnome-screenshot or grim",
+              file=sys.stderr)
+        return False
+
+    try:
+        # Call the portal — it returns a request path
+        result = subprocess.run([
+            "gdbus", "call", "--session",
+            "--dest", "org.freedesktop.portal.Desktop",
+            "--object-path", "/org/freedesktop/portal/desktop",
+            "--method", "org.freedesktop.portal.Screenshot.Screenshot",
+            "", "{}"
+        ], capture_output=True, text=True, timeout=10)
+
+        if result.returncode != 0:
+            print(f"  {err_prefix} Portal screenshot failed: {result.stderr[:200]}",
+                  file=sys.stderr)
+            return False
+
+        # Portal saves to a temporary file — we need to find it
+        # The portal is async and may prompt the user, so use a simpler approach:
+        # Use gnome-screenshot via D-Bus Shell.Screenshot interface
+        result = subprocess.run([
+            "gdbus", "call", "--session",
+            "--dest", "org.gnome.Shell",
+            "--object-path", "/org/gnome/Shell/Screenshot",
+            "--method", "org.gnome.Shell.Screenshot.Screenshot",
+            "false", "true", output_path
+        ], capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0 and os.path.exists(output_path):
+            return True
+
+        # Try GNOME 46+ ScreenshotPortal
+        result = subprocess.run([
+            "gdbus", "call", "--session",
+            "--dest", "org.gnome.Shell.Screenshot",
+            "--object-path", "/org/gnome/Shell/Screenshot",
+            "--method", "org.gnome.Shell.Screenshot.Screenshot",
+            "false", "true", output_path
+        ], capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0 and os.path.exists(output_path):
+            return True
+
+        print(f"  {err_prefix} Portal screenshot failed. Try: sudo apt install gnome-screenshot",
+              file=sys.stderr)
+        return False
+
+    except subprocess.TimeoutExpired:
+        print(f"  {err_prefix} Portal screenshot timed out", file=sys.stderr)
+        return False
+
+
 def _gui_screenshot(output_path, region=None):
     """Take a screenshot of the desktop or a region.
 
@@ -1127,22 +1188,34 @@ def _gui_screenshot(output_path, region=None):
     err = "\033[0;31m[ERR]\033[0m"
 
     if display == "wayland":
+        # Build ordered list of screenshot methods to try
+        methods = []
         if _has_command("grim"):
             cmd = ["grim"]
             if region:
                 x, y, w, h = region
                 cmd += ["-g", f"{x},{y} {w}x{h}"]
             cmd.append(output_path)
-        elif _has_command("gnome-screenshot"):
-            cmd = ["gnome-screenshot", "-f", output_path]
-        elif _has_command("spectacle"):
-            cmd = ["spectacle", "-b", "-n", "-o", output_path]
-        else:
-            print(f"  {err} No Wayland screenshot tool found. Install: sudo apt install grim",
-                  file=sys.stderr)
-            return False
+            methods.append(("grim", cmd))
+        if _has_command("gnome-screenshot"):
+            methods.append(("gnome-screenshot", ["gnome-screenshot", "-f", output_path]))
+        if _has_command("spectacle"):
+            methods.append(("spectacle", ["spectacle", "-b", "-n", "-o", output_path]))
+
+        # Try each tool, fall through on failure
+        for name, cmd in methods:
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    return True
+            except subprocess.TimeoutExpired:
+                pass
+
+        # Last resort: freedesktop portal (works on GNOME, KDE, etc.)
+        return _portal_screenshot(output_path, err)
+
+    # X11 tools
     elif _has_command("import"):
-        # ImageMagick import (X11 only)
         cmd = ["import", "-window", "root"]
         if region:
             x, y, w, h = region
