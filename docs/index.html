@@ -187,7 +187,7 @@ nav{
 .term-body{
   padding:1.5rem 1.75rem;
   font-family:var(--mono);font-size:.82rem;line-height:1.9;
-  min-height:200px;
+  min-height:380px;max-height:420px;overflow:hidden;
 }
 .t-p{color:var(--accent)}.t-c{color:var(--text)}.t-m{color:var(--muted)}
 .t-out{color:#6a7aff}.t-ok{color:var(--accent)}.t-path{color:var(--amber)}
@@ -546,18 +546,16 @@ footer{
     <button class="copy-btn" id="copybtn" onclick="doCopy(this)">Copy</button>
   </div>
 
-  <!-- Animated terminal -->
+  <!-- 30s Hero Demo: scroll .md → run md2cast → play screencast -->
   <div class="term-wrap">
     <div class="term">
       <div class="term-bar">
         <div class="dot dot-r"></div>
         <div class="dot dot-y"></div>
         <div class="dot dot-g"></div>
-        <span class="term-title">bash — md2cast</span>
+        <span class="term-title" id="term-title">tutorial.md</span>
       </div>
-      <div class="term-body" id="term-body">
-        <div><span class="t-p">$</span> <span class="t-c" id="tc"></span><span class="cursor"></span></div>
-      </div>
+      <div class="term-body" id="term-body"></div>
     </div>
   </div>
 </div>
@@ -1146,73 +1144,174 @@ const obs=new IntersectionObserver((entries)=>{
 },{threshold:.1,rootMargin:'0px 0px -40px 0px'});
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 
-// Hero terminal typewriter
+// 30s Hero Demo: scroll .md → run md2cast → play screencast
 (function(){
-  const sequences=[
-    {cmd:'md2cast docs/ --render-html',lines:[
-      {t:400,c:'<span class="t-m">  scanning markdown files...</span>'},
-      {t:600,c:'<span class="t-out">  → 4 files, 12 code blocks found</span>'},
-      {t:400,c:'<span class="t-out">  → executing: pip install envpod</span>'},
-      {t:600,c:'<span class="t-out">  → capturing browser flow (Playwright)</span>'},
-      {t:500,c:'<span class="t-out">  → rendering 12 .cast → .gif</span>'},
-      {t:400,c:'<span class="t-out">  → building html docs</span>'},
-      {t:400,c:'<span class="t-ok">  ✓ done in 8.3s  →  open index.html</span>'},
-    ]},
-    {cmd:'md2cast README.md --gif',lines:[
-      {t:400,c:'<span class="t-out">  → 3 code blocks detected</span>'},
-      {t:500,c:'<span class="t-out">  → generating install.gif</span>'},
-      {t:400,c:'<span class="t-out">  → generating verify.gif</span>'},
-      {t:400,c:'<span class="t-ok">  ✓ done  →  embed in your README</span>'},
-    ]},
-    {cmd:'md2cast tutorial.md --split',lines:[
-      {t:400,c:'<span class="t-out">  → 5 sections found</span>'},
-      {t:400,c:'<span class="t-path">  → section-1-install.cast</span>'},
-      {t:300,c:'<span class="t-path">  → section-2-configure.cast</span>'},
-      {t:300,c:'<span class="t-path">  → section-3-run.cast</span>'},
-      {t:400,c:'<span class="t-ok">  ✓ 5 casts generated</span>'},
-    ]},
+  var body=document.getElementById('term-body');
+  var title=document.getElementById('term-title');
+  if(!body)return;
+
+  // ── Markdown file content (Phase 1: scroll through this) ──
+  var mdLines=[
+    '<span class="t-m"># Getting Started</span>',
+    '',
+    'Install the CLI tool:',
+    '',
+    '<span class="t-m">&lt;!-- exec --&gt;</span>',
+    '<span class="t-ok">```bash</span>',
+    '<span class="t-c">pip install my-awesome-tool</span>',
+    '<span class="t-ok">```</span>',
+    '',
+    'Verify the installation:',
+    '',
+    '<span class="t-ok">```bash</span>',
+    '<span class="t-c">my-tool --version</span>',
+    '<span class="t-ok">```</span>',
+    '',
+    '<span class="t-m">&gt; Tip: Use --global for system-wide.</span>',
+    '',
+    '<span class="t-m">## Configuration</span>',
+    '',
+    'Create a config file:',
+    '',
+    '<span class="t-m">&lt;!-- type-delay 0.05 --&gt;</span>',
+    '<span class="t-ok">```bash</span>',
+    '<span class="t-c">my-tool init --template starter</span>',
+    '<span class="t-ok">```</span>',
+    '',
+    '<span class="t-m">&gt; This generates `config.yaml`</span>',
   ];
 
-  const body=document.getElementById('term-body');
-  const tc=document.getElementById('tc');
-  let si=0;
+  // ── Screencast playback frames (Phase 3) ──
+  var castFrames=[
+    {t:0,   lines:['<span class="t-m">  # ╔══════════════════════════════════════╗</span>','<span class="t-m">  # ║</span><span class="t-c">      Getting Started             </span><span class="t-m">║</span>','<span class="t-m">  # ╚══════════════════════════════════════╝</span>','']},
+    {t:800, lines:['<span class="t-m">  # Install the CLI tool:</span>','']},
+    {t:600, lines:['  <span class="t-ok">$</span> <span class="t-c" id="hero-t1"></span><span class="cursor"></span>'],type:['hero-t1','pip install my-awesome-tool']},
+    {t:1200,lines:['  <span class="t-m">Successfully installed my-awesome-tool-2.1.0</span>','']},
+    {t:800, lines:['<span class="t-m">  # Verify the installation:</span>','']},
+    {t:600, lines:['  <span class="t-ok">$</span> <span class="t-c" id="hero-t2"></span><span class="cursor"></span>'],type:['hero-t2','my-tool --version']},
+    {t:1000,lines:['  <span class="t-m">v2.1.0</span>','']},
+    {t:800, lines:['<span class="t-warn">  ▌ Tip: Use --global for system-wide.</span>','']},
+    {t:800, lines:['<span class="t-m">  # ── Configuration ──────────────────────</span>','']},
+    {t:600, lines:['<span class="t-m">  # Create a config file:</span>','']},
+    {t:600, lines:['  <span class="t-ok">$</span> <span class="t-c" id="hero-t3"></span><span class="cursor"></span>'],type:['hero-t3','my-tool init --template starter']},
+    {t:1000,lines:['  <span class="t-ok">✓ created config.yaml</span>','','<div style="text-align:right;padding-right:.5rem"><span class="t-m" style="font-size:.7rem">md2cast</span></div>']},
+  ];
 
-  function typeCmd(cmd,cb){
-    tc.textContent='';
-    let i=0;
-    const iv=setInterval(()=>{
-      if(i<cmd.length){tc.textContent+=cmd[i];i++}
-      else{clearInterval(iv);if(cb)cb();}
-    },28);
+  function typeText(id,text,speed,cb){
+    var el=document.getElementById(id);
+    if(!el){if(cb)cb();return;}
+    var i=0;
+    var iv=setInterval(function(){
+      if(i<text.length){el.textContent+=text[i];i++}
+      else{clearInterval(iv);
+        var cur=el.parentElement.querySelector('.cursor');
+        if(cur)cur.remove();
+        if(cb)cb();
+      }
+    },speed);
   }
 
-  function addLine(html){
-    const d=document.createElement('div');
+  function addDiv(html){
+    var d=document.createElement('div');
     d.innerHTML=html;
-    body.insertBefore(d,body.lastElementChild);
+    body.appendChild(d);
     body.scrollTop=body.scrollHeight;
   }
 
-  function runSeq(seq,done){
-    let li=0;
-    function next(){
-      if(li>=seq.lines.length){setTimeout(done,2000);return;}
-      const l=seq.lines[li++];
-      setTimeout(()=>{addLine(l.c);next();},l.t);
+  // ── PHASE 1: Show .md file, scroll through it (0-10s) ──
+  function phase1(cb){
+    title.textContent='tutorial.md';
+    body.innerHTML='';
+    body.style.color='var(--muted)';
+
+    // Show first visible lines
+    var visible=12;
+    for(var i=0;i<Math.min(visible,mdLines.length);i++){
+      addDiv(mdLines[i]||'&nbsp;');
     }
-    next();
+
+    // Scroll in remaining lines one by one
+    var idx=visible;
+    var scrollIv=setInterval(function(){
+      if(idx>=mdLines.length){
+        clearInterval(scrollIv);
+        setTimeout(cb,800);
+        return;
+      }
+      // Remove first child, add next line at bottom (scroll effect)
+      if(body.children.length>=visible) body.removeChild(body.firstChild);
+      addDiv(mdLines[idx]||'&nbsp;');
+      idx++;
+    },450);
   }
 
-  function loop(){
-    const seq=sequences[si%sequences.length];si++;
-    // Clear previous output lines (keep first and last child)
-    while(body.children.length>1){body.removeChild(body.firstChild);}
-    typeCmd(seq.cmd,()=>{
-      runSeq(seq,loop);
+  // ── PHASE 2: Exit file, run md2cast command (10-16s) ──
+  function phase2(cb){
+    body.innerHTML='';
+    body.style.color='';
+    title.textContent='bash — md2cast';
+
+    // Show prompt and type command
+    addDiv('<span class="t-p">$</span> <span class="t-c" id="hero-cmd"></span><span class="cursor"></span>');
+
+    typeText('hero-cmd','md2cast tutorial.md --render-html --execute',28,function(){
+      setTimeout(function(){
+        // Show processing output
+        var procLines=[
+          {t:400,c:'<span class="t-m">  scanning tutorial.md...</span>'},
+          {t:500,c:'<span class="t-out">  → 3 sections, 3 code blocks</span>'},
+          {t:400,c:'<span class="t-out">  → executing: pip install my-awesome-tool</span>'},
+          {t:500,c:'<span class="t-out">  → executing: my-tool --version</span>'},
+          {t:400,c:'<span class="t-out">  → executing: my-tool init --template starter</span>'},
+          {t:500,c:'<span class="t-out">  → rendering .cast with real output</span>'},
+          {t:400,c:'<span class="t-ok">  ✓ done in 4.7s → tutorial.html</span>'},
+        ];
+        var pi=0;
+        function nextProc(){
+          if(pi>=procLines.length){setTimeout(cb,1200);return;}
+          var p=procLines[pi++];
+          setTimeout(function(){addDiv(p.c);nextProc();},p.t);
+        }
+        nextProc();
+      },400);
     });
   }
 
-  setTimeout(loop,800);
+  // ── PHASE 3: Play the screencast (16-30s) ──
+  function phase3(cb){
+    body.innerHTML='';
+    title.textContent='tutorial.cast — playing';
+    body.style.color='';
+
+    var fi=0;
+    function nextFrame(){
+      if(fi>=castFrames.length){setTimeout(cb,3000);return;}
+      var f=castFrames[fi++];
+      setTimeout(function(){
+        f.lines.forEach(function(l){addDiv(l||'&nbsp;');});
+        body.scrollTop=body.scrollHeight;
+        if(f.type){
+          typeText(f.type[0],f.type[1],30,nextFrame);
+        } else {
+          nextFrame();
+        }
+      },f.t);
+    }
+    nextFrame();
+  }
+
+  // ── Main loop ──
+  function runDemo(){
+    phase1(function(){
+      phase2(function(){
+        phase3(function(){
+          setTimeout(runDemo,2000);
+        });
+      });
+    });
+  }
+
+  setTimeout(runDemo,600);
 })();
 </script>
 </body>
