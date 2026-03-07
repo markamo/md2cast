@@ -655,6 +655,80 @@ def word_wrap(text, width=100):
     return lines
 
 
+# ── Kitty graphics protocol ────────────────────────────────────────────────
+
+def _kitty_image_escape(image_path, cols=80, max_rows=20):
+    """Generate Kitty terminal graphics protocol escape sequence for an image.
+
+    Returns the escape string to embed in a .cast event, or None if unavailable.
+    Converts non-PNG images to PNG via Pillow. Resizes to fit terminal width.
+
+    Kitty protocol: \033_G<params>;<base64_data>\033\\
+    Supported by: Kitty, WezTerm, Ghostty, Konsole 22+
+    """
+    import base64 as _b64
+
+    if not _HAS_PIL:
+        return None
+
+    try:
+        img = _PILImage.open(image_path)
+    except (FileNotFoundError, OSError):
+        return None
+
+    # Handle animated GIFs — take first frame
+    if hasattr(img, 'n_frames') and img.n_frames > 1:
+        img.seek(0)
+    img = img.convert("RGBA")
+
+    # Resize to fit terminal width (approximate: 8px per column)
+    char_px = 8
+    target_w = cols * char_px
+    if img.width > target_w:
+        ratio = target_w / img.width
+        img = img.resize((target_w, int(img.height * ratio)), _PILImage.LANCZOS)
+
+    # Cap height to max_rows (approximate: 16px per row)
+    row_px = 16
+    max_h = max_rows * row_px
+    if img.height > max_h:
+        ratio = max_h / img.height
+        img = img.resize((int(img.width * ratio), max_h), _PILImage.LANCZOS)
+
+    # Convert to PNG bytes
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    png_data = buf.getvalue()
+
+    # Encode as base64
+    b64 = _b64.b64encode(png_data).decode('ascii')
+
+    # Split into 4096-byte chunks (Kitty protocol limit per transmission)
+    chunk_size = 4096
+    chunks = [b64[i:i + chunk_size] for i in range(0, len(b64), chunk_size)]
+
+    if not chunks:
+        return None
+
+    # Build escape sequences
+    # First chunk: a=T (transmit+display), f=100 (PNG), t=d (direct data)
+    parts = []
+    if len(chunks) == 1:
+        parts.append(f"\033_Gf=100,a=T,t=d;{chunks[0]}\033\\")
+    else:
+        parts.append(f"\033_Gf=100,a=T,t=d,m=1;{chunks[0]}\033\\")
+        for chunk in chunks[1:-1]:
+            parts.append(f"\033_Gm=1;{chunk}\033\\")
+        parts.append(f"\033_Gm=0;{chunks[-1]}\033\\")
+
+    # Add newlines after image to push cursor past it
+    img_rows = max(1, img.height // row_px)
+    parts.append("\r\n" * img_rows)
+
+    return "".join(parts)
+
+
 # ── Screencast renderer ───────────────────────────────────────────────────
 
 class Renderer:
@@ -794,7 +868,12 @@ class Renderer:
         self.cast.write_line("")
 
     def render_image(self, src, alt=""):
-        """Render an image reference. Records timestamp for GIF stitching."""
+        """Render an image reference with inline display via Kitty graphics protocol.
+
+        When the image file exists, embeds it as Kitty terminal graphics
+        (works in Kitty, WezTerm, Ghostty). Falls back to text placeholder.
+        Also records timestamp for GIF stitching and SVG embedding.
+        """
         t = self.t
         ext = os.path.splitext(src)[1].lower()
         if ext in (".mp4", ".webm", ".mov", ".avi"):
@@ -808,9 +887,26 @@ class Renderer:
             label = "Image"
         display = alt if alt else os.path.basename(src)
 
-        # Record position for GIF stitching (image inserted after this narration)
+        # Record for GIF stitching and SVG embedding
         self.image_markers.append({"time": self.cast.time, "src": src, "alt": alt})
 
+        # Resolve path
+        img_path = src
+        if self.working_dir and not os.path.isabs(src):
+            img_path = os.path.join(self.working_dir, src)
+
+        # Try to embed image via Kitty graphics protocol
+        if os.path.isfile(img_path) and ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"):
+            kitty_data = _kitty_image_escape(img_path, cols=t.cols - 4)
+            if kitty_data:
+                self.cast.write_line("")
+                self.cast.write_line(f"  {t.narration}{icon} {display}{t.nc}")
+                self.cast.write(kitty_data)
+                self.cast.pause(2.0)
+                self.cast.write_line("")
+                return
+
+        # Fallback: text placeholder
         self.cast.write_line("")
         self.cast.write_line(f"  {t.narration}{icon} {label}: {display}{t.nc}")
         self.cast.write_line(f"  {t.narration}   [{src}]{t.nc}")
@@ -1491,6 +1587,8 @@ class VirtualTerminal:
     def __init__(self, cols, rows):
         self.cols = cols
         self.rows = rows
+        self.images = []  # [(row, b64_png_data)] for SVG embedding
+        self._kitty_buf = {}  # accumulates chunked image data
         self._clear_grid()
 
     def _clear_grid(self):
@@ -1511,7 +1609,15 @@ class VirtualTerminal:
         n = len(text)
         while i < n:
             ch = text[i]
-            if ch == '\033' and i + 1 < n and text[i + 1] == '[':
+            if ch == '\033' and i + 1 < n and text[i + 1] == '_':
+                # APC sequence (Kitty graphics): \033_G...;\033\\
+                end = text.find('\033\\', i + 2)
+                if end >= 0:
+                    self._apc(text[i + 2:end])
+                    i = end + 2
+                else:
+                    i += 1
+            elif ch == '\033' and i + 1 < n and text[i + 1] == '[':
                 # Parse CSI sequence
                 j = i + 2
                 while j < n and not (0x40 <= ord(text[j]) <= 0x7E):
@@ -1611,6 +1717,41 @@ class VirtualTerminal:
                 self.bg = c - 100 + 8
             i += 1
 
+    def _apc(self, data):
+        """Handle APC sequence — extract Kitty graphics protocol images."""
+        if not data.startswith('G'):
+            return
+        # Format: G<params>;<payload>
+        semi = data.find(';')
+        if semi < 0:
+            return
+        params_str = data[1:semi]
+        payload = data[semi + 1:]
+
+        # Parse params: key=value,key=value
+        params = {}
+        for part in params_str.split(','):
+            if '=' in part:
+                k, v = part.split('=', 1)
+                params[k] = v
+
+        # Accumulate chunked data
+        more = params.get('m', '0')
+        if params.get('a') == 'T' or params.get('f') == '100':
+            # First chunk of a new image
+            self._kitty_buf = {'data': payload, 'row': self.crow}
+        elif self._kitty_buf:
+            # Continuation chunk
+            self._kitty_buf['data'] += payload
+
+        if more == '0' and self._kitty_buf:
+            # Final chunk — store the complete image
+            self.images.append({
+                'row': self._kitty_buf['row'],
+                'data': self._kitty_buf['data'],  # base64 PNG
+            })
+            self._kitty_buf = {}
+
     def _putch(self, ch):
         if self.ccol < self.cols and self.crow < self.rows:
             row = list(self.grid[self.crow])
@@ -1704,9 +1845,10 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
 
     # Simulate terminal, collect frames at time boundaries
     vt = VirtualTerminal(cols, rows)
-    frames = []  # (start_time, svg_text_list)
+    frames = []  # (start_time, svg_text_list, images_list)
     last_snap = None
     last_t = -1.0
+    seen_images = 0
 
     for event in events:
         ts, etype = event[0], event[1]
@@ -1715,18 +1857,21 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
         vt.process(event[2])
         if ts - last_t >= 0.1:  # 100ms minimum between frames
             snap = vt.snapshot()
-            if snap != last_snap:
+            new_images = vt.images[seen_images:]
+            if snap != last_snap or new_images:
                 texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
-                frames.append((ts, texts))
+                frames.append((ts, texts, list(new_images)))
+                seen_images = len(vt.images)
                 last_snap = snap
                 last_t = ts
 
     # Always capture final state
     final_snap = vt.snapshot()
-    if not frames or vt.snapshot() != last_snap:
+    new_images = vt.images[seen_images:]
+    if not frames or final_snap != last_snap or new_images:
         texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
         final_t = events[-1][0] if events else 0
-        frames.append((final_t, texts))
+        frames.append((final_t, texts, list(new_images)))
 
     if not frames:
         return svg_path
@@ -1742,7 +1887,7 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
     out.append('.f{opacity:0;position:absolute}')
     out.append('@keyframes s{0%,100%{opacity:1}}')
-    for i, (start, _) in enumerate(frames):
+    for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
         dur = end - start
         fill = 'forwards' if i == len(frames) - 1 else 'none'
@@ -1765,9 +1910,16 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
                    f'{_svg_escape(title)}</text>')
 
     # Render frames
-    for i, (_, texts) in enumerate(frames):
+    for i, (_, texts, images) in enumerate(frames):
         out.append(f'<g id="f{i}" class="f t">')
         out.extend(texts)
+        # Embed Kitty protocol images as SVG <image> elements
+        for img in images:
+            img_y = y_base + img['row'] * char_h
+            img_w = svg_w - pad_x * 2
+            out.append(f'<image x="{pad_x}" y="{img_y:.0f}" width="{img_w:.0f}" '
+                       f'href="data:image/png;base64,{img["data"]}" '
+                       f'preserveAspectRatio="xMidYMid meet"/>')
         out.append('</g>')
 
     out.append('</svg>')
@@ -1805,6 +1957,7 @@ def cast_to_svg_inline(cast_path, theme=None):
     frames = []
     last_snap = None
     last_t = -1.0
+    seen_images = 0
 
     for event in events:
         ts, etype = event[0], event[1]
@@ -1813,17 +1966,20 @@ def cast_to_svg_inline(cast_path, theme=None):
         vt.process(event[2])
         if ts - last_t >= 0.1:
             snap = vt.snapshot()
-            if snap != last_snap:
+            new_images = vt.images[seen_images:]
+            if snap != last_snap or new_images:
                 texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
-                frames.append((ts, texts))
+                frames.append((ts, texts, list(new_images)))
+                seen_images = len(vt.images)
                 last_snap = snap
                 last_t = ts
 
     final_snap = vt.snapshot()
-    if not frames or final_snap != last_snap:
+    new_images = vt.images[seen_images:]
+    if not frames or final_snap != last_snap or new_images:
         texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
         final_t = events[-1][0] if events else 0
-        frames.append((final_t, texts))
+        frames.append((final_t, texts, list(new_images)))
 
     if not frames:
         return f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w:.0f}" height="{svg_h:.0f}"></svg>'
@@ -1838,16 +1994,22 @@ def cast_to_svg_inline(cast_path, theme=None):
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
     out.append('.f{opacity:0}')
     out.append('@keyframes s{0%,100%{opacity:1}}')
-    for i, (start, _) in enumerate(frames):
+    for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
         dur = end - start
         fill = 'forwards' if i == len(frames) - 1 else 'none'
         out.append(f'#f{i}{{animation:s {dur:.3f}s step-end {start:.3f}s {fill}}}')
     out.append('</style>')
 
-    for i, (_, texts) in enumerate(frames):
+    for i, (_, texts, images) in enumerate(frames):
         out.append(f'<g id="f{i}" class="f t">')
         out.extend(texts)
+        for img in images:
+            img_y = y_base + img['row'] * char_h
+            img_w = svg_w - pad_x * 2
+            out.append(f'<image x="{pad_x}" y="{img_y:.0f}" width="{img_w:.0f}" '
+                       f'href="data:image/png;base64,{img["data"]}" '
+                       f'preserveAspectRatio="xMidYMid meet"/>')
         out.append('</g>')
 
     out.append('</svg>')
