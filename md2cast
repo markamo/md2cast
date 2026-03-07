@@ -1905,17 +1905,29 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
                f'width="{svg_w:.0f}" height="{svg_h:.0f}">')
     out.append('<defs><style>')
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
-    out.append('.f{opacity:0;position:absolute}')
-    out.append('@keyframes s{0%,100%{opacity:1}}')
+    out.append('.f{opacity:0}')
     for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
-        dur = end - start
-        fill = 'forwards' if i == len(frames) - 1 else 'none'
-        out.append(f'#f{i}{{animation:s {dur:.3f}s step-end {start:.3f}s {fill}}}')
+        s_pct = start / total_dur * 100
+        e_pct = end / total_dur * 100
+        # Each frame visible only during its percentage window
+        out.append(f'@keyframes f{i}{{0%{{opacity:0}}{s_pct:.2f}%{{opacity:1}}{e_pct:.2f}%{{opacity:0}}100%{{opacity:0}}}}')
+        out.append(f'#f{i}{{animation:f{i} {total_dur:.2f}s step-end infinite}}')
+    # Pause/resume on click + cursor
+    out.append('.p{cursor:pointer}')
     out.append('</style></defs>')
 
-    # Background with rounded corners
-    out.append(f'<rect width="100%" height="100%" fill="{bg}" rx="8"/>')
+    # Click-to-pause/resume overlay + background
+    out.append(f'<rect width="100%" height="100%" fill="{bg}" rx="8" class="p"/>')
+    out.append('<script type="text/ecmascript"><![CDATA['
+               'var s=document.documentElement;'
+               's.addEventListener("click",function(){'
+               'var c=getComputedStyle(s).animationPlayState||"running";'
+               'var gs=s.querySelectorAll("[id^=f]");'
+               'var st=gs[0]?getComputedStyle(gs[0]).animationPlayState:"running";'
+               'var nv=st==="running"?"paused":"running";'
+               'for(var i=0;i<gs.length;i++)gs[i].style.animationPlayState=nv;'
+               '});]]></script>')
 
     # Title bar traffic lights
     dy = title_h / 2
@@ -2013,13 +2025,23 @@ def cast_to_svg_inline(cast_path, theme=None):
     out.append('<style>')
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
     out.append('.f{opacity:0}')
-    out.append('@keyframes s{0%,100%{opacity:1}}')
     for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
-        dur = end - start
-        fill = 'forwards' if i == len(frames) - 1 else 'none'
-        out.append(f'#f{i}{{animation:s {dur:.3f}s step-end {start:.3f}s {fill}}}')
+        s_pct = start / total_dur * 100
+        e_pct = end / total_dur * 100
+        out.append(f'@keyframes f{i}{{0%{{opacity:0}}{s_pct:.2f}%{{opacity:1}}{e_pct:.2f}%{{opacity:0}}100%{{opacity:0}}}}')
+        out.append(f'#f{i}{{animation:f{i} {total_dur:.2f}s step-end infinite}}')
+    out.append('svg{cursor:pointer}')
     out.append('</style>')
+    # Click-to-pause/resume (scoped to this SVG via evt.currentTarget)
+    out.append('<script type="text/ecmascript"><![CDATA['
+               'document.documentElement.addEventListener("click",function(e){'
+               'var s=e.currentTarget;'
+               'var gs=s.querySelectorAll("[id^=f]");'
+               'var st=gs[0]?getComputedStyle(gs[0]).animationPlayState:"running";'
+               'var nv=st==="running"?"paused":"running";'
+               'for(var i=0;i<gs.length;i++)gs[i].style.animationPlayState=nv;'
+               '});]]></script>')
 
     for i, (_, texts, images) in enumerate(frames):
         out.append(f'<g id="f{i}" class="f t">')
