@@ -895,21 +895,41 @@ class Renderer:
         if self.working_dir and not os.path.isabs(src):
             img_path = os.path.join(self.working_dir, src)
 
+        # Box border characters
+        tl, tr, bl, br = "\u250c", "\u2510", "\u2514", "\u2518"
+        hz, vt = "\u2500", "\u2502"
+        border = t.section_border
+
         # Try to embed image via Kitty graphics protocol
         if os.path.isfile(img_path) and ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"):
-            kitty_data = _kitty_image_escape(img_path, cols=t.cols - 4)
+            kitty_data = _kitty_image_escape(img_path, cols=t.cols - 8)
             if kitty_data:
+                # Title line with box top
+                title = f" {icon} {display} "
+                bar_w = t.cols - 6
+                left_bar = hz * 2
+                right_bar = hz * max(1, bar_w - len(title) - 2)
                 self.cast.write_line("")
-                self.cast.write_line(f"  {t.narration}{icon} {display}{t.nc}")
+                self.cast.write_line(f"  {border}{tl}{left_bar}{title}{right_bar}{tr}{t.nc}")
+                self.cast.write_line(f"  {border}{vt}{t.nc}")
                 self.cast.write(kitty_data)
+                self.cast.write_line(f"  {border}{vt}{t.nc}")
+                self.cast.write_line(f"  {border}{bl}{hz * bar_w}{br}{t.nc}")
                 self.cast.pause(2.0)
                 self.cast.write_line("")
                 return
 
-        # Fallback: text placeholder
+        # Fallback: text placeholder in a box
+        bar_w = max(len(display) + 8, 30)
+        title = f" {icon} {display} "
+        left_bar = hz * 2
+        right_bar = hz * max(1, bar_w - len(title) - 2)
         self.cast.write_line("")
-        self.cast.write_line(f"  {t.narration}{icon} {label}: {display}{t.nc}")
-        self.cast.write_line(f"  {t.narration}   [{src}]{t.nc}")
+        self.cast.write_line(f"  {border}{tl}{left_bar}{title}{right_bar}{tr}{t.nc}")
+        self.cast.write_line(f"  {border}{vt}{t.nc}")
+        self.cast.write_line(f"  {border}{vt}  {t.narration}{label}: {src}{t.nc}")
+        self.cast.write_line(f"  {border}{vt}{t.nc}")
+        self.cast.write_line(f"  {border}{bl}{hz * bar_w}{br}{t.nc}")
         self.cast.pause(1.5)
         self.cast.write_line("")
 
