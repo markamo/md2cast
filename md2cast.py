@@ -1905,15 +1905,13 @@ def cast_to_svg(cast_path, svg_path=None, theme=None):
                f'width="{svg_w:.0f}" height="{svg_h:.0f}">')
     out.append('<defs><style>')
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
-    out.append('.f{opacity:0}')
+    out.append('.f{visibility:hidden}')
     for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
         s_pct = start / total_dur * 100
         e_pct = end / total_dur * 100
-        # Each frame visible only during its percentage window
-        out.append(f'@keyframes f{i}{{0%{{opacity:0}}{s_pct:.2f}%{{opacity:1}}{e_pct:.2f}%{{opacity:0}}100%{{opacity:0}}}}')
+        out.append(f'@keyframes f{i}{{0%{{visibility:hidden}}{s_pct:.2f}%{{visibility:visible}}{e_pct:.2f}%{{visibility:hidden}}100%{{visibility:hidden}}}}')
         out.append(f'#f{i}{{animation:f{i} {total_dur:.2f}s step-end infinite}}')
-    # Pause/resume on click + cursor
     out.append('.p{cursor:pointer}')
     out.append('</style></defs>')
 
@@ -2024,12 +2022,12 @@ def cast_to_svg_inline(cast_path, theme=None):
                f'style="width:100%;max-width:{svg_w:.0f}px;border-radius:8px;background:{bg}">')
     out.append('<style>')
     out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
-    out.append('.f{opacity:0}')
+    out.append('.f{visibility:hidden}')
     for i, (start, _, _imgs) in enumerate(frames):
         end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
         s_pct = start / total_dur * 100
         e_pct = end / total_dur * 100
-        out.append(f'@keyframes f{i}{{0%{{opacity:0}}{s_pct:.2f}%{{opacity:1}}{e_pct:.2f}%{{opacity:0}}100%{{opacity:0}}}}')
+        out.append(f'@keyframes f{i}{{0%{{visibility:hidden}}{s_pct:.2f}%{{visibility:visible}}{e_pct:.2f}%{{visibility:hidden}}100%{{visibility:hidden}}}}')
         out.append(f'#f{i}{{animation:f{i} {total_dur:.2f}s step-end infinite}}')
     out.append('svg{cursor:pointer}')
     out.append('</style>')
