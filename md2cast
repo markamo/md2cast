@@ -2113,10 +2113,14 @@ def _walk_markdown_blocks(md_text):
         i += 1
 
 
-def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None):
-    """Generate a new Markdown with GIF screencasts embedded above code blocks.
+def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None,
+                    use_svg=True):
+    """Generate a new Markdown with SVG (or GIF) screencasts embedded above code blocks.
 
-    Returns the new Markdown text and the number of GIFs generated.
+    When use_svg=True (default), embeds animated SVGs (no external tools needed).
+    When use_svg=False, generates GIFs via agg.
+
+    Returns the new Markdown text and the number of media items generated.
     """
     os.makedirs(assets_dir, exist_ok=True)
     output_lines = []
@@ -2151,26 +2155,33 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
                 code_content, lang, dirs, theme, assets_dir,
                 block_count, current_section, execute, working_dir)
 
-            # Convert to GIF
-            gif_path = os.path.splitext(cast_path)[0] + ".gif"
-            gif_ok = False
-            try:
-                result = subprocess.run(
-                    ["agg", cast_path, gif_path],
-                    capture_output=True, text=True, timeout=120
-                )
-                gif_ok = result.returncode == 0
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-
-            if gif_ok:
-                print(f"  {ok} {gif_path}")
-                rel_gif = os.path.join(os.path.basename(assets_dir), f"{cast_name}.gif")
+            if use_svg:
+                svg_path = os.path.splitext(cast_path)[0] + ".svg"
+                cast_to_svg(cast_path, svg_path, theme=theme)
+                rel_svg = os.path.join(os.path.basename(assets_dir), f"{cast_name}.svg")
                 alt_text = strip_md(current_section)
-                output_lines.append(f"![{alt_text}]({rel_gif})")
+                output_lines.append(f"![{alt_text}]({rel_svg})")
                 output_lines.append("")
             else:
-                print(f"  {err} Failed to generate {gif_path}", file=sys.stderr)
+                gif_path = os.path.splitext(cast_path)[0] + ".gif"
+                gif_ok = False
+                try:
+                    result = subprocess.run(
+                        ["agg", cast_path, gif_path],
+                        capture_output=True, text=True, timeout=120
+                    )
+                    gif_ok = result.returncode == 0
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    pass
+
+                if gif_ok:
+                    print(f"  {ok} {gif_path}")
+                    rel_gif = os.path.join(os.path.basename(assets_dir), f"{cast_name}.gif")
+                    alt_text = strip_md(current_section)
+                    output_lines.append(f"![{alt_text}]({rel_gif})")
+                    output_lines.append("")
+                else:
+                    print(f"  {err} Failed to generate {gif_path}", file=sys.stderr)
 
             output_lines.extend(original_lines)
 
@@ -2654,7 +2665,9 @@ def main():
     parser.add_argument("--title", help="Override cast title")
     parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
     parser.add_argument("--svg", action="store_true",
-                        help="Generate animated SVG (no external tools needed)")
+                        help="Generate animated SVG (default for --render and --render-html)")
+    parser.add_argument("--no-svg", action="store_true",
+                        help="Use GIF/asciinema-player instead of SVG for --render/--render-html")
     parser.add_argument("--gif", action="store_true",
                         help="Also generate GIF via agg (requires agg installed)")
     parser.add_argument("--mp4", action="store_true",
@@ -2664,9 +2677,9 @@ def main():
     parser.add_argument("--video", action="store_true",
                         help="Alias for --mp4")
     parser.add_argument("--render", action="store_true",
-                        help="Generate a new Markdown with embedded GIF screencasts for each code block")
+                        help="Generate a new Markdown with embedded SVG screencasts (use --no-svg for GIF)")
     parser.add_argument("--render-html", action="store_true",
-                        help="Generate an HTML page with asciinema players for each code block")
+                        help="Generate an HTML page with animated SVG players (use --no-svg for asciinema JS)")
     parser.add_argument("--embed", action="store_true",
                         help="Embed cast data inline in HTML (single file, no server needed). Use with --render-html")
     parser.add_argument("--init-theme", action="store_true",
@@ -2724,34 +2737,40 @@ def main():
 
     blocks = parse_markdown(md_text)
 
-    # Render mode — generate new Markdown with embedded GIFs
+    # Render mode — generate new Markdown with embedded screencasts
     if args.render:
         base = os.path.splitext(args.input)[0]
         out_md = args.output or f"{base}-rendered.md"
         assets_dir = os.path.join(os.path.dirname(out_md) or ".", "assets")
+        # SVG by default; --no-svg overrides to GIF
+        use_svg_render = not args.no_svg
 
         print(f"\n  Rendering {args.input} → {out_md}\n")
-        rendered_md, gif_count = render_markdown(
+        rendered_md, media_count = render_markdown(
             md_text, theme,
             assets_dir=assets_dir,
             execute=args.execute,
             working_dir=args.working_dir,
+            use_svg=use_svg_render,
         )
 
         with open(out_md, "w") as f:
             f.write(rendered_md)
 
+        fmt = "SVGs" if use_svg_render else "GIFs"
         ok = "\033[0;32m[OK]\033[0m"
-        print(f"\n  {ok} {out_md}  ({gif_count} GIFs)")
+        print(f"\n  {ok} {out_md}  ({media_count} {fmt})")
         print(f"  Assets: {assets_dir}/")
         print()
         return
 
-    # Render HTML mode — generate HTML page with asciinema players
+    # Render HTML mode — generate HTML page with embedded screencasts
     if args.render_html:
         base = os.path.splitext(args.input)[0]
         out_html = args.output or f"{base}.html"
         assets_dir = os.path.join(os.path.dirname(out_html) or ".", "assets")
+        # SVG by default; --no-svg to use asciinema-player JS
+        use_svg_html = not getattr(args, 'no_svg', False)
 
         print(f"\n  Rendering {args.input} → {out_html}\n")
         html, player_count = render_html(
@@ -2760,7 +2779,7 @@ def main():
             execute=args.execute,
             working_dir=args.working_dir,
             embed=args.embed,
-            use_svg=args.svg,
+            use_svg=use_svg_html,
         )
 
         with open(out_html, "w") as f:
