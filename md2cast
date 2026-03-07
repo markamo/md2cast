@@ -21,8 +21,11 @@ Usage:
   md2cast input.md --split                # one .cast per ## section
   md2cast input.md --list                 # list sections
   md2cast input.md --theme dark.json      # custom theme
+  md2cast input.md --svg                  # generate animated SVG (no deps!)
   md2cast input.md --mp4                  # generate MP4 video (agg + ffmpeg)
   md2cast input.md --webm                 # generate WebM video (agg + ffmpeg)
+  md2cast notebook.ipynb                  # convert Jupyter notebook
+  md2cast notebook.ipynb --render-html --svg  # notebook → HTML with SVG players
   md2cast input.md --init-theme           # generate default theme file
 
 Markdown mapping:
@@ -76,7 +79,7 @@ try:
 except ImportError:
     _HAS_PIL = False
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # ── Free tier limits ──────────────────────────────────────────────────────
 FREE_TIER = True
@@ -1444,6 +1447,502 @@ def _stitch_images_into_gif(gif_path, image_markers, working_dir=None):
         print(f"  {ok} Stitched {len(insertions)} image(s) into {gif_path}")
 
 
+# ── Virtual Terminal (for SVG rendering) ──────────────────────────────────
+
+# Tokyo Night palette for SVG output
+SVG_PALETTE_16 = [
+    "#414868", "#f7768e", "#9ece6a", "#e0af68",  # black, red, green, yellow
+    "#7aa2f7", "#bb9af7", "#7dcfff", "#c0caf5",  # blue, magenta, cyan, white
+    "#565f89", "#f7768e", "#9ece6a", "#e0af68",  # bright black-yellow
+    "#7aa2f7", "#bb9af7", "#7dcfff", "#c0caf5",  # bright blue-white
+]
+
+
+def _svg_color(color_val, default="#c0caf5"):
+    """Convert a terminal color value to hex for SVG."""
+    if color_val is None:
+        return default
+    if isinstance(color_val, int):
+        return SVG_PALETTE_16[color_val] if color_val < 16 else default
+    if isinstance(color_val, tuple):
+        if color_val[0] == 'rgb':
+            return f"#{color_val[1]:02x}{color_val[2]:02x}{color_val[3]:02x}"
+        if color_val[0] == '256':
+            n = color_val[1]
+            if n < 16:
+                return SVG_PALETTE_16[n]
+            if n < 232:
+                n -= 16
+                r, g, b = (n // 36) * 51, ((n // 6) % 6) * 51, (n % 6) * 51
+                return f"#{r:02x}{g:02x}{b:02x}"
+            v = (n - 232) * 10 + 8
+            return f"#{v:02x}{v:02x}{v:02x}"
+    return default
+
+
+def _svg_escape(text):
+    """Escape XML special characters."""
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
+
+class VirtualTerminal:
+    """Minimal VT100 emulator for rendering .cast files to SVG."""
+
+    def __init__(self, cols, rows):
+        self.cols = cols
+        self.rows = rows
+        self._clear_grid()
+
+    def _clear_grid(self):
+        self.grid = [self._empty_row() for _ in range(self.rows)]
+        self.crow = 0
+        self.ccol = 0
+        self.fg = None
+        self.bg = None
+        self.bold = False
+        self.dim = False
+
+    def _empty_row(self):
+        return [(' ', None, None, False, False)] * self.cols
+
+    def process(self, text):
+        """Process text with ANSI escapes, updating terminal state."""
+        i = 0
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if ch == '\033' and i + 1 < n and text[i + 1] == '[':
+                # Parse CSI sequence
+                j = i + 2
+                while j < n and not (0x40 <= ord(text[j]) <= 0x7E):
+                    j += 1
+                if j < n:
+                    params = text[i + 2:j]
+                    cmd = text[j]
+                    self._csi(params, cmd)
+                    i = j + 1
+                else:
+                    i += 1
+            elif ch == '\r':
+                self.ccol = 0
+                i += 1
+            elif ch == '\n':
+                self._linefeed()
+                i += 1
+            elif ch == '\t':
+                spaces = 8 - (self.ccol % 8)
+                for _ in range(spaces):
+                    self._putch(' ')
+                i += 1
+            else:
+                self._putch(ch)
+                i += 1
+
+    def _csi(self, params, cmd):
+        # Strip DEC private mode prefix
+        p = params.lstrip('?')
+        if cmd == 'm':
+            self._sgr(p)
+        elif cmd in ('H', 'f'):
+            parts = p.split(';') if p else []
+            r = int(parts[0] or '1') - 1 if parts else 0
+            c = int(parts[1] or '1') - 1 if len(parts) > 1 else 0
+            self.crow = max(0, min(r, self.rows - 1))
+            self.ccol = max(0, min(c, self.cols - 1))
+        elif cmd == 'J':
+            n = int(p or '0')
+            if n == 2:
+                self._clear_grid()
+        elif cmd == 'K':
+            n = int(p or '0')
+            if n == 0:
+                row = list(self.grid[self.crow])
+                for c in range(self.ccol, self.cols):
+                    row[c] = (' ', None, None, False, False)
+                self.grid[self.crow] = row
+        elif cmd == 'A':
+            self.crow = max(0, self.crow - int(p or '1'))
+        elif cmd == 'B':
+            self.crow = min(self.rows - 1, self.crow + int(p or '1'))
+        elif cmd == 'C':
+            self.ccol = min(self.cols - 1, self.ccol + int(p or '1'))
+        elif cmd == 'D':
+            self.ccol = max(0, self.ccol - int(p or '1'))
+
+    def _sgr(self, params):
+        codes = [int(c) for c in params.split(';') if c] if params else [0]
+        i = 0
+        while i < len(codes):
+            c = codes[i]
+            if c == 0:
+                self.fg = self.bg = None
+                self.bold = self.dim = False
+            elif c == 1:
+                self.bold = True
+            elif c == 2:
+                self.dim = True
+            elif c == 22:
+                self.bold = self.dim = False
+            elif 30 <= c <= 37:
+                self.fg = c - 30
+            elif c == 38 and i + 1 < len(codes):
+                if codes[i + 1] == 5 and i + 2 < len(codes):
+                    self.fg = ('256', codes[i + 2])
+                    i += 2
+                elif codes[i + 1] == 2 and i + 4 < len(codes):
+                    self.fg = ('rgb', codes[i + 2], codes[i + 3], codes[i + 4])
+                    i += 4
+            elif c == 39:
+                self.fg = None
+            elif 40 <= c <= 47:
+                self.bg = c - 40
+            elif c == 48 and i + 1 < len(codes):
+                if codes[i + 1] == 5 and i + 2 < len(codes):
+                    self.bg = ('256', codes[i + 2])
+                    i += 2
+                elif codes[i + 1] == 2 and i + 4 < len(codes):
+                    self.bg = ('rgb', codes[i + 2], codes[i + 3], codes[i + 4])
+                    i += 4
+            elif c == 49:
+                self.bg = None
+            elif 90 <= c <= 97:
+                self.fg = c - 90 + 8
+            elif 100 <= c <= 107:
+                self.bg = c - 100 + 8
+            i += 1
+
+    def _putch(self, ch):
+        if self.ccol < self.cols and self.crow < self.rows:
+            row = list(self.grid[self.crow])
+            row[self.ccol] = (ch, self.fg, self.bg, self.bold, self.dim)
+            self.grid[self.crow] = row
+            self.ccol += 1
+            if self.ccol >= self.cols:
+                self.ccol = 0
+                self._linefeed()
+
+    def _linefeed(self):
+        self.crow += 1
+        if self.crow >= self.rows:
+            self.grid.pop(0)
+            self.grid.append(self._empty_row())
+            self.crow = self.rows - 1
+
+    def snapshot(self):
+        """Return a hashable snapshot of the current grid."""
+        return tuple(tuple(row) for row in self.grid)
+
+
+def _grid_to_svg_texts(grid, default_fg, char_h, pad_x, y_base):
+    """Convert a terminal grid to SVG <text> elements for non-empty rows."""
+    parts = []
+    for r_idx, row in enumerate(grid):
+        # Find last non-space character
+        last = -1
+        for i in range(len(row) - 1, -1, -1):
+            if row[i][0] != ' ' or row[i][2] is not None:
+                last = i
+                break
+        if last < 0:
+            continue
+
+        # Build tspan elements for color runs
+        spans = []
+        cur_fg = None
+        cur_bold = False
+        cur_dim = False
+        buf = []
+
+        def flush():
+            if not buf:
+                return
+            attrs = f' fill="{cur_fg or default_fg}"'
+            if cur_dim:
+                attrs += ' opacity="0.5"'
+            if cur_bold:
+                attrs += ' font-weight="bold"'
+            spans.append(f'<tspan{attrs}>{_svg_escape("".join(buf))}</tspan>')
+
+        for c_idx in range(last + 1):
+            ch, fg, bg, bold, dim = row[c_idx]
+            fg_hex = _svg_color(fg, default_fg)
+            if fg_hex != cur_fg or bold != cur_bold or dim != cur_dim:
+                flush()
+                buf = []
+                cur_fg = fg_hex
+                cur_bold = bold
+                cur_dim = dim
+            buf.append(ch)
+
+        flush()
+        if spans:
+            y = y_base + r_idx * char_h
+            parts.append(f'<text x="{pad_x}" y="{y:.1f}">{"".join(spans)}</text>')
+    return parts
+
+
+def cast_to_svg(cast_path, svg_path=None, theme=None):
+    """Convert a .cast file to an animated SVG. Returns svg_path."""
+    if svg_path is None:
+        svg_path = os.path.splitext(cast_path)[0] + ".svg"
+
+    with open(cast_path, 'r') as f:
+        header = json.loads(f.readline())
+        events = [json.loads(line) for line in f if line.strip()]
+
+    cols = header.get('width', 110)
+    rows = header.get('height', 35)
+    bg = theme.render_bg if theme else "#1a1b26"
+    fg = theme.render_fg if theme else "#c0caf5"
+    font = theme.render_code_font if theme else "JetBrains Mono, monospace"
+
+    char_w, char_h, font_size = 8.4, 18, 14
+    pad_x, pad_y, title_h = 16, 16, 40
+    svg_w = cols * char_w + pad_x * 2
+    svg_h = rows * char_h + pad_y * 2 + title_h
+    y_base = title_h + pad_y + font_size
+
+    # Simulate terminal, collect frames at time boundaries
+    vt = VirtualTerminal(cols, rows)
+    frames = []  # (start_time, svg_text_list)
+    last_snap = None
+    last_t = -1.0
+
+    for event in events:
+        ts, etype = event[0], event[1]
+        if etype != 'o':
+            continue
+        vt.process(event[2])
+        if ts - last_t >= 0.1:  # 100ms minimum between frames
+            snap = vt.snapshot()
+            if snap != last_snap:
+                texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
+                frames.append((ts, texts))
+                last_snap = snap
+                last_t = ts
+
+    # Always capture final state
+    final_snap = vt.snapshot()
+    if not frames or vt.snapshot() != last_snap:
+        texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
+        final_t = events[-1][0] if events else 0
+        frames.append((final_t, texts))
+
+    if not frames:
+        return svg_path
+
+    total_dur = frames[-1][0] + 2.0  # 2s hold on last frame
+
+    # Build SVG
+    out = []
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" '
+               f'viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" '
+               f'width="{svg_w:.0f}" height="{svg_h:.0f}">')
+    out.append('<defs><style>')
+    out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
+    out.append('.f{opacity:0;position:absolute}')
+    out.append('@keyframes s{0%,100%{opacity:1}}')
+    for i, (start, _) in enumerate(frames):
+        end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
+        dur = end - start
+        fill = 'forwards' if i == len(frames) - 1 else 'none'
+        out.append(f'#f{i}{{animation:s {dur:.3f}s step-end {start:.3f}s {fill}}}')
+    out.append('</style></defs>')
+
+    # Background with rounded corners
+    out.append(f'<rect width="100%" height="100%" fill="{bg}" rx="8"/>')
+
+    # Title bar traffic lights
+    dy = title_h / 2
+    out.append(f'<circle cx="20" cy="{dy}" r="6" fill="#ff5f56"/>')
+    out.append(f'<circle cx="40" cy="{dy}" r="6" fill="#ffbd2e"/>')
+    out.append(f'<circle cx="60" cy="{dy}" r="6" fill="#27c93f"/>')
+
+    title = header.get('title', '')
+    if title:
+        out.append(f'<text x="{svg_w / 2:.0f}" y="{dy + 4:.0f}" text-anchor="middle" '
+                   f'fill="#565f89" font-family="{font}" font-size="12">'
+                   f'{_svg_escape(title)}</text>')
+
+    # Render frames
+    for i, (_, texts) in enumerate(frames):
+        out.append(f'<g id="f{i}" class="f t">')
+        out.extend(texts)
+        out.append('</g>')
+
+    out.append('</svg>')
+
+    svg_content = '\n'.join(out)
+    with open(svg_path, 'w') as f:
+        f.write(svg_content)
+
+    ok = "\033[0;32m[OK]\033[0m"
+    size = len(svg_content)
+    size_str = f"{size / 1024:.0f}KB" if size < 1024 * 1024 else f"{size / 1024 / 1024:.1f}MB"
+    print(f"  {ok} {svg_path} ({size_str})")
+    return svg_path
+
+
+def cast_to_svg_inline(cast_path, theme=None):
+    """Convert a .cast file to an SVG string for HTML embedding."""
+    with open(cast_path, 'r') as f:
+        header = json.loads(f.readline())
+        events = [json.loads(line) for line in f if line.strip()]
+
+    cols = header.get('width', 110)
+    rows = header.get('height', 35)
+    bg = theme.render_bg if theme else "#1a1b26"
+    fg = theme.render_fg if theme else "#c0caf5"
+    font = theme.render_code_font if theme else "JetBrains Mono, monospace"
+
+    char_w, char_h, font_size = 8.4, 18, 14
+    pad_x, pad_y = 12, 12
+    svg_w = cols * char_w + pad_x * 2
+    svg_h = rows * char_h + pad_y * 2
+    y_base = pad_y + font_size
+
+    vt = VirtualTerminal(cols, rows)
+    frames = []
+    last_snap = None
+    last_t = -1.0
+
+    for event in events:
+        ts, etype = event[0], event[1]
+        if etype != 'o':
+            continue
+        vt.process(event[2])
+        if ts - last_t >= 0.1:
+            snap = vt.snapshot()
+            if snap != last_snap:
+                texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
+                frames.append((ts, texts))
+                last_snap = snap
+                last_t = ts
+
+    final_snap = vt.snapshot()
+    if not frames or final_snap != last_snap:
+        texts = _grid_to_svg_texts(vt.grid, fg, char_h, pad_x, y_base)
+        final_t = events[-1][0] if events else 0
+        frames.append((final_t, texts))
+
+    if not frames:
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_w:.0f}" height="{svg_h:.0f}"></svg>'
+
+    total_dur = frames[-1][0] + 2.0
+
+    out = []
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" '
+               f'viewBox="0 0 {svg_w:.0f} {svg_h:.0f}" '
+               f'style="width:100%;max-width:{svg_w:.0f}px;border-radius:8px;background:{bg}">')
+    out.append('<style>')
+    out.append(f'.t{{font-family:{font};font-size:{font_size}px;white-space:pre}}')
+    out.append('.f{opacity:0}')
+    out.append('@keyframes s{0%,100%{opacity:1}}')
+    for i, (start, _) in enumerate(frames):
+        end = frames[i + 1][0] if i + 1 < len(frames) else total_dur
+        dur = end - start
+        fill = 'forwards' if i == len(frames) - 1 else 'none'
+        out.append(f'#f{i}{{animation:s {dur:.3f}s step-end {start:.3f}s {fill}}}')
+    out.append('</style>')
+
+    for i, (_, texts) in enumerate(frames):
+        out.append(f'<g id="f{i}" class="f t">')
+        out.extend(texts)
+        out.append('</g>')
+
+    out.append('</svg>')
+    return '\n'.join(out)
+
+
+# ── Notebook conversion ───────────────────────────────────────────────────
+
+def notebook_to_markdown(ipynb_path, output_dir=None):
+    """Convert a Jupyter notebook (.ipynb) to Markdown for md2cast.
+
+    Extracts markdown cells, code cells (with outputs), and saves
+    embedded images to output_dir. Returns the Markdown string.
+    """
+    with open(ipynb_path, 'r') as f:
+        nb = json.load(f)
+
+    if output_dir is None:
+        output_dir = os.path.dirname(os.path.abspath(ipynb_path))
+    os.makedirs(output_dir, exist_ok=True)
+
+    lang = 'python'
+    ks = nb.get('metadata', {}).get('kernelspec', {})
+    if ks.get('language'):
+        lang = ks['language']
+
+    parts = []
+    img_n = 0
+
+    for ci, cell in enumerate(nb.get('cells', [])):
+        ctype = cell.get('cell_type', '')
+        source = ''.join(cell.get('source', []))
+
+        if ctype == 'markdown':
+            parts.append(source)
+            parts.append('')
+
+        elif ctype == 'code':
+            if source.strip():
+                parts.append(f'```{lang}')
+                parts.append(source)
+                parts.append('```')
+                parts.append('')
+
+            for output in cell.get('outputs', []):
+                otype = output.get('output_type', '')
+
+                if otype == 'stream':
+                    text = ''.join(output.get('text', []))
+                    if text.strip():
+                        parts.append('```')
+                        parts.append(text.rstrip())
+                        parts.append('```')
+                        parts.append('')
+
+                elif otype in ('display_data', 'execute_result'):
+                    data = output.get('data', {})
+                    saved = False
+                    for mime in ('image/png', 'image/jpeg', 'image/svg+xml'):
+                        if mime in data:
+                            import base64 as _b64
+                            img_n += 1
+                            ext = 'svg' if 'svg' in mime else mime.split('/')[1]
+                            img_name = f'nb_output_{ci}_{img_n}.{ext}'
+                            img_path = os.path.join(output_dir, img_name)
+                            if ext == 'svg':
+                                with open(img_path, 'w') as imgf:
+                                    imgf.write(data[mime])
+                            else:
+                                with open(img_path, 'wb') as imgf:
+                                    imgf.write(_b64.b64decode(data[mime]))
+                            parts.append(f'![Output]({img_name})')
+                            parts.append('')
+                            saved = True
+                            break
+                    if not saved:
+                        text = ''.join(data.get('text/plain', []))
+                        if text.strip():
+                            parts.append('```')
+                            parts.append(text.rstrip())
+                            parts.append('```')
+                            parts.append('')
+
+                elif otype == 'error':
+                    tb = '\n'.join(output.get('traceback', []))
+                    tb = re.sub(r'\033\[[^m]*m', '', tb)  # strip ANSI
+                    if tb.strip():
+                        parts.append('```')
+                        parts.append(tb.rstrip())
+                        parts.append('```')
+                        parts.append('')
+
+    return '\n'.join(parts)
+
+
 def _estimate_block_rows(code_content, lang, dirs, execute=False):
     """Estimate how many terminal rows a block needs.
 
@@ -1727,9 +2226,11 @@ def render_markdown(md_text, theme, assets_dir, execute=False, working_dir=None)
     return "\n".join(output_lines), generated
 
 
-def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, embed=False):
-    """Generate an HTML page with asciinema players.
+def render_html(md_text, theme, assets_dir, execute=False, working_dir=None,
+                embed=False, use_svg=False):
+    """Generate an HTML page with embedded terminal screencasts.
 
+    When use_svg=True, embeds animated SVGs (no JS needed).
     When embed=True, cast data is base64-encoded inline (single-file, no server needed).
     When embed=False, cast files are in assets_dir (needs HTTP server for file:// access).
 
@@ -1813,20 +2314,30 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
 
             print(f"  {ok} {cast_path}")
 
-            if embed:
-                import base64
-                with open(cast_path, "r") as cf:
-                    cast_data = cf.read()
-                cast_src = "data:application/json;base64," + base64.b64encode(
-                    cast_data.encode()).decode()
-            else:
-                cast_src = os.path.join(os.path.basename(assets_dir), f"{cast_name}.cast")
-            player_id = f"player-{block_count}"
-
-            # Collapsible code block + player
             escaped_code = _html_escape(code_content)
-            lang_label = lang.upper() if lang else "OUTPUT"
-            sections_html.append(f'''<div class="cast-block">
+
+            if use_svg:
+                # Embed animated SVG directly — no JS player needed
+                svg_content = cast_to_svg_inline(cast_path, theme=theme)
+                sections_html.append(f'''<div class="cast-block">
+  <div class="svg-player">{svg_content}</div>
+  <div class="code-copy">
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-{lang or 'text'}">{escaped_code}</code></pre>
+  </div>
+</div>''')
+            else:
+                if embed:
+                    import base64
+                    with open(cast_path, "r") as cf:
+                        cast_data = cf.read()
+                    cast_src = "data:application/json;base64," + base64.b64encode(
+                        cast_data.encode()).decode()
+                else:
+                    cast_src = os.path.join(os.path.basename(assets_dir), f"{cast_name}.cast")
+                player_id = f"player-{block_count}"
+
+                sections_html.append(f'''<div class="cast-block">
   <div id="{player_id}" class="player" data-cast-src="{cast_src}"
        data-theme="{theme.player_theme or 'monokai'}"
        data-font="{theme.font_family or 'monospace'}"
@@ -1889,7 +2400,7 @@ def render_html(md_text, theme, assets_dir, execute=False, working_dir=None, emb
                         f'</div>')
 
     body = "\n".join(sections_html)
-    html = _html_template(page_title or "Documentation", body, theme)
+    html = _html_template(page_title or "Documentation", body, theme, use_svg=use_svg)
     generated = min(block_count, FREE_MAX_BLOCKS) if FREE_TIER else block_count
     return html, generated
 
@@ -1941,8 +2452,8 @@ def _html_inline(text):
     return ''.join(out)
 
 
-def _html_template(title, body, theme):
-    """Generate the full HTML page with embedded asciinema player."""
+def _html_template(title, body, theme, use_svg=False):
+    """Generate the full HTML page with embedded screencasts."""
     img_radius = theme.render_image_border_radius
     img_max_w = theme.render_image_max_width
     return f'''<!DOCTYPE html>
@@ -1951,7 +2462,7 @@ def _html_template(title, body, theme):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{_html_escape(title)}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">
+{'<!-- SVG mode: no external JS/CSS needed -->' if use_svg else '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.css">'}
 <style>
   :root {{
     --bg: {theme.render_bg};
@@ -2003,6 +2514,16 @@ def _html_template(title, body, theme):
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid var(--border);
+  }}
+  .svg-player {{
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }}
+  .svg-player svg {{
+    display: block;
+    width: 100%;
+    height: auto;
   }}
   details {{
     margin-top: 0.5rem;
@@ -2061,7 +2582,7 @@ def _html_template(title, body, theme):
   /* Asciinema player overrides */
   .ap-wrapper {{ border-radius: 8px !important; }}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>
+{'<!-- SVG mode -->' if use_svg else '<script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.0/dist/bundle/asciinema-player.min.js" defer></script>'}
 </head>
 <body>
 {body}
@@ -2074,7 +2595,7 @@ function copyCode(btn) {{
     setTimeout(function() {{ btn.textContent = 'Copy'; btn.classList.remove('copied'); }}, 2000);
   }});
 }}
-document.addEventListener('DOMContentLoaded', function() {{
+{'' if use_svg else """document.addEventListener('DOMContentLoaded', function() {{
   document.querySelectorAll('.player[data-cast-src]').forEach(function(el) {{
     AsciinemaPlayer.create(el.dataset.castSrc, el, {{
       theme: el.dataset.theme,
@@ -2088,7 +2609,7 @@ document.addEventListener('DOMContentLoaded', function() {{
       preload: true
     }});
   }});
-}});
+}});"""}
 </script>
 <footer style="margin-top:4rem;padding:1.5rem 0 0.5rem;text-align:center;font-size:0.75rem;color:var(--muted);opacity:0.6;">
   Made with <a href="https://github.com/markamo/md2cast" style="color:var(--accent);text-decoration:none;">md2cast</a>
@@ -2132,6 +2653,8 @@ def main():
     parser.add_argument("--working-dir", "-C", help="Working directory for executed commands")
     parser.add_argument("--title", help="Override cast title")
     parser.add_argument("--theme", help="Theme JSON file (auto-discovers md2cast.json if not set)")
+    parser.add_argument("--svg", action="store_true",
+                        help="Generate animated SVG (no external tools needed)")
     parser.add_argument("--gif", action="store_true",
                         help="Also generate GIF via agg (requires agg installed)")
     parser.add_argument("--mp4", action="store_true",
@@ -2186,10 +2709,15 @@ def main():
     theme_config = _deep_merge(theme_config, overrides)
     theme = Theme(theme_config)
 
-    # Read input
+    # Read input (supports .md and .ipynb)
     try:
-        with open(args.input, "r") as f:
-            md_text = f.read()
+        if args.input.endswith('.ipynb'):
+            assets_dir_nb = os.path.dirname(os.path.abspath(args.input))
+            md_text = notebook_to_markdown(args.input, output_dir=assets_dir_nb)
+            print(f"  Converted notebook: {args.input}")
+        else:
+            with open(args.input, "r") as f:
+                md_text = f.read()
     except FileNotFoundError:
         print(f"Error: {args.input} not found", file=sys.stderr)
         sys.exit(1)
@@ -2232,6 +2760,7 @@ def main():
             execute=args.execute,
             working_dir=args.working_dir,
             embed=args.embed,
+            use_svg=args.svg,
         )
 
         with open(out_html, "w") as f:
@@ -2282,6 +2811,8 @@ def main():
             renderer.render_blocks(section_blocks)
             cast.save(outfile)
             print(f"  {ok} {outfile}  ({strip_md(title)})")
+            if args.svg:
+                cast_to_svg(outfile, theme=theme)
             if args.gif or args.mp4 or args.webm or args.video:
                 cast_to_gif(outfile)
                 gp = os.path.splitext(outfile)[0] + ".gif"
@@ -2320,6 +2851,8 @@ def main():
         print(f"\n  {ok} {outfile}")
         print(f"  Duration: {duration:.1f}s  Events: {event_count}")
         print(f"  Play: asciinema play {outfile}")
+        if args.svg:
+            cast_to_svg(outfile, theme=theme)
         want_gif = args.gif or args.mp4 or args.webm or args.video
         if want_gif:
             cast_to_gif(outfile)
@@ -2335,7 +2868,7 @@ def main():
                     gif_to_video(gif_path, "mp4")
                 if args.webm:
                     gif_to_video(gif_path, "webm")
-        else:
+        elif not args.svg:
             print(f"  GIF:  agg {outfile} {os.path.splitext(outfile)[0]}.gif")
         print()
 

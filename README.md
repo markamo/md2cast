@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/md2cast-v0.4.0-2997ff?style=for-the-badge&labelColor=000" alt="md2cast v0.3.0">
+  <img src="https://img.shields.io/badge/md2cast-v0.5.0-2997ff?style=for-the-badge&labelColor=000" alt="md2cast v0.3.0">
 </p>
 
 <h1 align="center">md2cast</h1>
