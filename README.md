@@ -40,10 +40,8 @@ Write your tutorial in Markdown. Run one command. Get a `.cast` file you can pla
 ## Install
 
 ```bash
-pipx install md2cast
+pip install md2cast
 ```
-
-Or with pip in a virtual environment: `pip install md2cast`
 
 Installs `md2cast` with **Pygments** (syntax highlighting) and **asciinema** (playback) automatically.
 
