@@ -546,7 +546,7 @@ footer{
 
   <div class="badge">
     <span class="badge-pulse"></span>
-    MIT open source &nbsp;·&nbsp; pipx install md2cast
+    MIT open source &nbsp;·&nbsp; pip install md2cast
   </div>
 
   <h1>
@@ -571,7 +571,7 @@ footer{
 
   <div class="install-bar">
     <span class="prompt">$</span>
-    <code>pipx install md2cast</code>
+    <code>pip install md2cast</code>
     <button class="copy-btn" id="copybtn" onclick="doCopy(this)">Copy</button>
   </div>
 
@@ -593,7 +593,7 @@ footer{
           <span class="line" data-step="1">&nbsp;</span>
           <span class="line md-dir" data-step="2">&lt;!-- exec --&gt;</span>
           <span class="line md-fence" data-step="2">```bash</span>
-          <span class="line md-code" data-step="2">pipx install md2cast</span>
+          <span class="line md-code" data-step="2">pip install md2cast</span>
           <span class="line md-fence" data-step="2">```</span>
           <span class="line" data-step="2">&nbsp;</span>
           <span class="line md-text" data-step="3">Verify it works:</span>
@@ -1067,7 +1067,7 @@ footer{
   <p class="reveal">Install in 30 seconds. Your first screencast in under 2 minutes.</p>
   <div class="install-bar reveal" style="display:inline-flex">
     <span class="prompt">$</span>
-    <code>pipx install md2cast</code>
+    <code>pip install md2cast</code>
     <button class="copy-btn" onclick="doCopy(this)">Copy</button>
   </div>
   <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap" class="reveal d1">
@@ -1093,7 +1093,7 @@ footer{
 <script>
 // Copy button
 function doCopy(btn){
-  navigator.clipboard.writeText('pipx install md2cast').then(()=>{
+  navigator.clipboard.writeText('pip install md2cast').then(()=>{
     btn.textContent='Copied!';btn.classList.add('done');
     setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('done')},2000);
   });
@@ -1242,7 +1242,7 @@ document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
     ]},
     {step:2, delay:800, lines:[
       '  <span class="t-ok">$</span> <span class="t-c" id="ht1"></span><span class="cursor"></span>'
-    ], type:['ht1','pipx install md2cast']},
+    ], type:['ht1','pip install md2cast']},
     {step:2, delay:1400, lines:[
       '  <span class="t-m">  installed package md2cast 0.3.0</span>',
       '  <span class="t-m">    - md2cast</span>',
